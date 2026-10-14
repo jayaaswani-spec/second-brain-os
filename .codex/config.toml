@@ -1,0 +1,32 @@
+# Codex MCP servers, generated from .mcp.json by scripts/codex-config-from-mcp.mjs.
+# Edit .mcp.json, then re-run the script (the pre-commit hook does); hand edits here are overwritten.
+# Codex loads this file only once you trust this folder (it asks on first run).
+
+# Started from the repo root, so it also works when Codex runs in a subfolder.
+# Needs GEMINI_API_KEY set in your shell.
+[mcp_servers.gemini-vision]
+command = "sh"
+args = ["-c", "root=$(git rev-parse --show-toplevel 2>/dev/null) && cd \"$root\"; exec \"$@\"", "sh", "node", ".claude/mcp-servers/gemini-vision.mjs"]
+env_vars = ["GEMINI_API_KEY"]
+
+[mcp_servers.exa]
+url = "https://mcp.exa.ai/mcp?tools=web_search_advanced_exa"
+
+# Needs FIRECRAWL_API_KEY set in your shell.
+[mcp_servers.firecrawl]
+url = "https://mcp.firecrawl.dev/v2/mcp"
+bearer_token_env_var = "FIRECRAWL_API_KEY"
+
+# Opt-in servers: uncomment a block, then sign in with `codex mcp login <name>`.
+
+# Not expected to work in Codex as is: this server needs a pre-registered OAuth client (Claude Code uses client id 1601185624273.8899143856786), so register your own before enabling it.
+# [mcp_servers.slack]
+# url = "https://mcp.slack.com/mcp"
+
+# [mcp_servers.atlassian]
+# url = "https://mcp.atlassian.com/v1/mcp"
+
+# [mcp_servers.figma]
+# url = "https://mcp.figma.com/mcp"
+
+# No Codex block (connect these through Codex's own connectors): google_workspace.

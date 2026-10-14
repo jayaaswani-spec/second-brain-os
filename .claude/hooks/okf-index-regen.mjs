@@ -5,24 +5,27 @@
  *
  * Regenerates the edited file's own directory and walks up to the project root,
  * so subdirectory file-counts shown in the parent index stay accurate. The index
- * is a derived view of frontmatter (decision #15 amended 2026-06-28 to permit
- * machine-generated indexes) — this hook is what keeps it fresh between /reindex runs.
+ * is a derived view of frontmatter, never hand-edited — this hook is what keeps it fresh between /reindex runs.
  *
  * Deterministic, zero-cost (no LLM/network), fail-open. Never reacts to index.md
  * writes (the generator writes via fs, not the Write tool, so there's no loop —
- * but we skip index.md inputs defensively). Scoped to 1-Projects only; HQs and the
- * full bundle are handled by the /reindex skill.
+ * but we skip index.md inputs defensively). Scoped to 1-Projects bundles, plus one
+ * Area hop: when a project's root CLAUDE.md changes (in Projects or Archive), every
+ * Area index is rebuilt, since its parent_hq may have moved the project between
+ * Areas. The full bundle is handled by the /reindex skill.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, basename, sep } from "node:path";
 import { resolveRepoRoot } from "./lib/resolve-project-root.mjs";
 import { writeIndexForDir } from "./lib/okf-index.mjs";
 
 function done() { console.log("{}"); }
 
-function readToken(md, key) {
+// A Configuration value, or `fallback` when it's missing or still an unfilled <placeholder>.
+function readToken(md, key, fallback) {
   const m = md.match(new RegExp("`" + key.replace(/\./g, "\\.") + "` = `([^`]+)`"));
-  return m ? m[1].trim() : null;
+  const v = m ? m[1].trim() : "";
+  return v && !v.startsWith("<") ? v : fallback;
 }
 
 function main() {
@@ -40,13 +43,28 @@ function main() {
   const repoRoot = resolveRepoRoot(fileDir);
 
   // Resolve the projects tree from the repo's Configuration section (portable).
-  let rootToken, projectsToken;
+  let rootToken, projectsToken, areasToken, archiveToken;
   try {
     const md = readFileSync(join(repoRoot, "CLAUDE.md"), "utf8");
-    rootToken = readToken(md, "workspace.root");
-    projectsToken = readToken(md, "workspace.projects");
+    rootToken = readToken(md, "workspace.root", "workspace");
+    projectsToken = readToken(md, "workspace.projects", "1-Projects");
+    areasToken = readToken(md, "workspace.areas", "2-Areas");
+    archiveToken = readToken(md, "workspace.archive", "5-Archive");
   } catch { return done(); }
   if (!rootToken || !projectsToken) return done();
+
+  // A project's root CLAUDE.md carries parent_hq, which feeds the Area indexes.
+  if (basename(fp) === "CLAUDE.md" && areasToken) {
+    const buckets = [projectsToken, archiveToken].filter(Boolean).map((t) => join(repoRoot, rootToken, t));
+    if (buckets.includes(dirname(fileDir))) {
+      const areasBase = join(repoRoot, rootToken, areasToken);
+      let areas = [];
+      try { areas = readdirSync(areasBase).filter((n) => !n.startsWith(".") && statSync(join(areasBase, n)).isDirectory()); } catch { /* none */ }
+      for (const area of areas) {
+        try { writeIndexForDir(join(areasBase, area)); } catch { /* fail-open per Area */ }
+      }
+    }
+  }
 
   const projectsBase = join(repoRoot, rootToken, projectsToken) + sep;
   if (!(fileDir + sep).startsWith(projectsBase)) return done(); // only index 1-Projects bundles

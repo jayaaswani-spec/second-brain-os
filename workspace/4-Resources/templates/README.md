@@ -14,7 +14,7 @@ If you delete or modify files here without updating the skills that reference th
 templates/
 ├── project-claude-template.md       # used by /new-project for non-code projects
 ├── project-memory-template.md       # used by /new-project — initial memory.md
-├── code-project-claude-template.md  # used by /new-project for code repos
+├── code-project-claude-template.md  # used by /new-project for an Area-owned app repo
 ├── project-query.sh                 # runtime script for active-project listing
 └── persona/                         # used by /bootstrap to regenerate persona files
     ├── README-template.md
@@ -35,7 +35,7 @@ templates/
 ## What doesn't belong here
 
 - ✗ Your own reusable templates (proposal one-pager, weekly review format) → `reference/`
-- ✗ Code → `<workspace.root>/../3-Coding/<scope>/<name>/`
+- ✗ Code → a `COD-` project's ignored `app/`, or the owning Area's `apps/<name>/` once shipped
 - ✗ Research notes → `research/`
 - ✗ Anything that isn't read by a skill or a system script
 

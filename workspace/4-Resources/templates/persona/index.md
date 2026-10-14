@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED OKF index — do not edit by hand. Edit each file's frontmatter instead; this is regenerated on write by the okf-index hook and by the /reindex skill. Source of truth = the files themselves. -->
 
-# Index — templates/persona
+# Index — persona
 
 _6 files · 0 subdirectories_
 

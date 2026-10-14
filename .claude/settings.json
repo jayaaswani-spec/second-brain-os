@@ -1,10 +1,17 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/status.mjs\""
-  },
   "hooks": {
-    "SessionStart": [],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/inject-projects.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "matcher": "",
@@ -29,7 +36,7 @@
         ]
       },
       {
-        "matcher": "Bash|mcp__slack__slack_send_message|mcp__slack__slack_schedule_message|mcp__atlassian__createJiraIssue|mcp__atlassian__editJiraIssue|mcp__atlassian__transitionJiraIssue|mcp__atlassian__addCommentToJiraIssue|mcp__atlassian__addWorklogToJiraIssue|mcp__atlassian__createIssueLink|mcp__atlassian__createConfluencePage|mcp__atlassian__updateConfluencePage|mcp__atlassian__createConfluenceFooterComment|mcp__atlassian__createConfluenceInlineComment",
+        "matcher": "Bash|mcp__.*__(slack_send_message|slack_schedule_message|slack_create_canvas|slack_update_canvas|send_message|reply|forward|send_imessage|createJiraIssue|editJiraIssue|transitionJiraIssue|addCommentToJiraIssue|addOrEditJiraIssueComment|addWorklogToJiraIssue|createIssueLink|createConfluencePage|createConfluenceContent|updateConfluencePage|updateConfluenceContent|createConfluenceFooterComment|createConfluenceInlineComment|executeWrite|executeDestructive)",
         "hooks": [
           {
             "type": "command",
@@ -39,12 +46,22 @@
         ]
       },
       {
-        "matcher": "mcp__slack__slack_send_message_draft|mcp__slack__slack_send_message|mcp__slack__slack_schedule_message",
+        "matcher": "mcp__.*__(slack_send_message_draft|slack_send_message|slack_schedule_message)",
         "hooks": [
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-slack-draft-contact-check.mjs\"",
             "timeout": 4
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|Update",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/workspace-guards.mjs\"",
+            "timeout": 8
           }
         ]
       },
@@ -76,40 +93,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-edit-diagnostics.mjs\"",
-            "timeout": 15
-          },
-          {
-            "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/okf-index-regen.mjs\"",
             "timeout": 10
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-handoff-stop.mjs\""
-          }
-        ]
-      }
     ]
   },
-  "permissions": {
-    "allow": [
-      "Bash(git push https://bitbucket.org/sambatv/*)",
-      "Bash(git -C * push https://bitbucket.org/sambatv/*)",
-      "Bash(git push https://bitbucket.org/sambatv/*)",
-      "Bash(git -C * push https://bitbucket.org/sambatv/*)",
-      "Write(~/Desktop/3-Content/**)",
-      "Edit(~/Desktop/3-Content/**)",
-      "Bash(mkdir -p ~/Desktop/3-Content/*)",
-      "Bash(ls ~/Desktop/3-Content/*)",
-      "Bash(python3 *.claude/skills/yt-competitive-analysis/analyze.py *)"
-    ]
+  "statusLine": {
+    "type": "command",
+    "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/status.mjs\""
   }
 }

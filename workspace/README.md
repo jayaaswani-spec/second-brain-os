@@ -7,9 +7,8 @@ The PARA-style work area for everything you do with `<assistant.name>` — proje
 ```
 <workspace.root>/
 ├── 0-Inbox/         # ad-hoc / not-yet-decided capture zone
-├── 1-Projects/      # active projects (YYYY-MM-slug/ with CLAUDE.md + memory.md)
-├── 2-Areas/         # evergreen HQs; may own ignored apps/<name>/ repos
-├── 3-Coding/        # legacy code repos (grandfathered; no new apps)
+├── 1-Projects/      # active projects (PROJ-/COD-YYYY-MM-slug/ with CLAUDE.md + memory.md)
+├── 2-Areas/         # thin Areas: rules + memory + generated index; may own ignored apps/<name>/
 ├── 4-Resources/     # reference layer: templates, meetings, reference, research,
 │                    # contacts, design-systems, briefings, meeting-prep,
 │                    # organization-reports
@@ -20,7 +19,7 @@ Each folder has its own README explaining what belongs there and how `<assistant
 
 ## Why PARA
 
-PARA is a personal-knowledge-management system invented by Tiago Forte — **P**rojects, **A**reas, **R**esources, **A**rchive. All four slots exist here. **Areas** (`2-Areas/`) are evergreen HQ workstations for long-running areas of responsibility — empty on a fresh fork, they grow as recurring workstreams emerge and finished projects deposit into them (see `2-Areas/README.md` and the HQ model in root `CLAUDE.md`). Pure recurring rhythms with no artifacts (daily triage) still get handled by skills (`/briefing`) rather than a folder. The numeric prefixes (`0-Inbox`, `1-Projects`, etc.) keep things in logical order in your file browser.
+PARA is a personal-knowledge-management system invented by Tiago Forte — **P**rojects, **A**reas, **R**esources, **A**rchive. All four slots exist here. **Areas** (`2-Areas/`) are thin workstations for long-running areas of responsibility: each holds its rules, its memory and a generated index of its projects, never content. They're empty on a fresh fork and appear as recurring workstreams emerge (see `2-Areas/README.md` and the Area model in root `CLAUDE.md`). Pure recurring rhythms with no artifacts (daily triage) still get handled by skills (`/briefing`) rather than a folder. The numeric prefixes (`0-Inbox`, `1-Projects`, etc.) keep things in logical order in your file browser.
 
 ## The 30-second navigation guide
 
@@ -28,9 +27,9 @@ PARA is a personal-knowledge-management system invented by Tiago Forte — **P**
 |----------------|---------|
 | Capture a half-formed idea you might revisit | `0-Inbox/` |
 | Work on a time-bound deliverable | `1-Projects/<slug>/` |
-| Maintain an evergreen area of responsibility | `2-Areas/<name>/` (HQ workstation) |
-| Build an app owned by an Area | `2-Areas/<name>/apps/<app-name>/` |
-| Find a grandfathered code repo | `3-Coding/<name>/` |
+| Keep the rules and memory for an ongoing area of responsibility | `2-Areas/<name>/` |
+| Build code for a project | `1-Projects/COD-<YYYY-MM>-<slug>/app/` (gitignored) |
+| Maintain a shipped app an Area owns | `2-Areas/<name>/apps/<app-name>/` (gitignored) |
 | File a meeting transcript | `4-Resources/meetings/` |
 | Read past briefings | `4-Resources/briefings/` |
 | Save research / reference docs | `4-Resources/research/` or `4-Resources/reference/` |
@@ -42,7 +41,7 @@ PARA is a personal-knowledge-management system invented by Tiago Forte — **P**
 `<assistant.name>` reads the Configuration section in root `CLAUDE.md` to resolve `<workspace.root>` (this folder), `<workspace.projects>` (`1-Projects/`), etc. The skills don't hardcode paths — they reference tokens, so the layout adapts when you fork the harness and rename folders.
 
 Skills that span this whole layout:
-- **`/find <topic>`** — searches across active projects, archive, code repos, and research for prior work on a topic. Use this BEFORE scaffolding anything new (Operating Principle: "connect before create").
+- **`/find <topic>`** — searches across active projects, archive, resources and memory for prior work on a topic. Use this BEFORE scaffolding anything new (Operating Principle: "connect before create").
 - **`/briefing`** — composes today's brief by reading each active project's `memory.md` tail, plus optional signals from external tools (email, calendar, messaging, issue-tracking, code-hosting — whichever you have configured).
 - **`/inbox-process`** — Friday triage of `0-Inbox/`; promotes things to `1-Projects/` or files them in `4-Resources/`.
 - **`/prune-projects`** — Friday review of stale `1-Projects/` (no activity in 14+ days); archives or revives.
@@ -56,7 +55,7 @@ See the repo-root `README.md` for the full dual-folder explanation.
 
 ## Conventions
 
-- **Folder names use `YYYY-MM-<slug>`** in `1-Projects/` and `5-Archive/` — date prefix orders chronologically; slug describes the work
+- **Folder names use `<PREFIX>-YYYY-MM-<slug>`** in `1-Projects/` and `5-Archive/` — `PROJ-` by default, `COD-` for a code effort, `VID-` for a single video; the date orders chronologically and the slug describes the work
 - **`memory.md` is append-only** in every project folder — never rewrite prior entries
 - **Never delete** — move to `5-Archive/`. Provenance matters; storage is cheap
 - **Status frontmatter** (`status: active | paused | done`) on every project's `CLAUDE.md` is the contract that `/briefing`, `/prune-projects`, and `/archive-project` read

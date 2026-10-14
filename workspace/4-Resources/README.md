@@ -12,15 +12,13 @@ Reference material — durable docs you re-read, lookup-by-entity (contacts, des
 <workspace.root>/4-Resources/
 ├── briefings/              # /briefing outputs (morning briefs)
 ├── contacts/               # per-person reference (one file per person)
-├── design-systems/         # 73 brand presets for /design-* skills
+├── design-systems/         # brand presets for /design-* skills
 ├── meetings/               # meeting transcripts (Tactiq, Gemini, manual)
-├── media-library/          # approved reusable YouTube B-roll and motion catalog
-├── meeting-prep/           # /meeting-prep outputs (planned skill)
-├── organization-reports/   # /organize and analytical reports
+├── meeting-prep/           # pre-meeting briefs
+├── organization-reports/   # analytical and org reports
 ├── reference/              # durable docs (employee directory, tool inventory)
 ├── research/               # research notes by topic
-├── templates/              # project + persona templates + project-query.sh
-└── code-projects.md        # index of repos in 3-Coding/ (gitignored folder)
+└── templates/              # project + persona templates + project-query.sh
 ```
 
 Each subfolder has its own README explaining what belongs there and how `<assistant.name>` uses it. Read those before filing.
@@ -31,42 +29,37 @@ Each subfolder has its own README explaining what belongs there and how `<assist
 |--------|---------------|---------|
 | `briefings/` | Output of `/briefing` — daily morning briefs | Agent-written; re-read by user; consumed by future briefings |
 | `contacts/` | Per-person profiles + interaction logs | Entity-keyed lookup (one file per person) |
-| `design-systems/` | 73 brand presets (Apple, Linear, Stripe, etc.) | Pick one via `/use-design <brand>` |
-| `meetings/` | Raw transcripts | User-collected; consumed by `/briefing` + `/meeting-prep` |
-| `media-library/` | Approved reusable YouTube media records, previews, and generated usage catalog | Episode manifests own usage; versioned records own reusable identity |
+| `design-systems/` | Brand presets (Apple, Linear, Stripe, etc.) | Pick one via `/use-design <brand>` |
+| `meetings/` | Raw transcripts | User-collected; consumed by `/briefing` and meeting prep |
 | `meeting-prep/` | Pre-meeting briefs | Agent-written; consumed before each meeting |
 | `organization-reports/` | Org analytics, team breakdowns | Agent-written; periodic refreshes |
 | `reference/` | Durable docs (employee directory, tool inventory) | User-curated; rarely changes |
 | `research/` | Research notes by topic | User-written; grows over time |
 | `templates/` | Scaffold templates + `project-query.sh` | Used by skills, edited rarely |
-| `code-projects.md` | Index of `3-Coding/` repos | Maintained by `/new-project` + `/sync-indexes` |
 
 ## What belongs in 4-Resources (vs elsewhere)
 
 - ✓ A reference doc you'll re-read for years (org chart, tool inventory) → `reference/`
 - ✓ A research note on a topic that may inform future projects (LLM pricing trends, RAG patterns) → `research/`
 - ✓ A meeting transcript → `meetings/`
-- ✓ A contact you'll want to look up → `contacts/<slug>.md` (use `/contact-add`)
-- ✓ Sid-approved reusable B-roll, motion, diagram, transition, texture, or audio asset → `media-library/` after promotion review
+- ✓ A contact you'll want to look up → `contacts/<slug>.md` (schema in `contacts/README.md`)
 - ✓ Agent-generated synthesis (briefing, meeting prep, org report) → respective subfolder
 
 ## What doesn't belong here
 
 - ✗ Active project work → `1-Projects/<slug>/`
 - ✗ Half-formed captures → `0-Inbox/`
-- ✗ Code → `3-Coding/<scope>/<repo>/`
+- ✗ Code → a `COD-` project's ignored `app/`, or the owning Area's `apps/<name>/` once shipped
 - ✗ Finished projects → `5-Archive/`
 
 ## How `<assistant.name>` uses this folder
 
 - **`/find <topic>`** — searches across `research/`, `reference/`, `meetings/`, `contacts/`, and `briefings/` for prior work on a topic
-- **YouTube Content Studio** — searches, registers, validates, and rebuilds the shared media catalog from active and archived `VID-*` manifests
 - **`/save-resource`** — files a resource into the right subfolder (asks you which one, defaults sensibly)
 - **`/briefing`** — writes to `briefings/`; reads from `contacts/`, `meetings/` (optional cross-ref)
 - **`/contact <name>`** — reads from `contacts/`
 - **`/contact-log <name>`** — appends to a contact's interaction log
-- **`/contact-add`** / **`/contact-research`** / **`/contact-audit`** (planned) — write to `contacts/`
-- **`/meeting-prep`** (planned) — reads from `meetings/` + `contacts/`; writes to `meeting-prep/`
+- **Meeting prep** — ask `<assistant.name>` in chat to prep a meeting (no dedicated skill ships); it reads `meetings/` + `contacts/` and saves the brief to `meeting-prep/`
 - **`/use-design <brand>`** — copies a brand from `design-systems/<brand>/DESIGN.md` to the root `DESIGN.md` (active brand for the workspace)
 
 ## Pattern: "synthesis next to source"

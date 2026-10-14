@@ -1,23 +1,14 @@
 #!/usr/bin/env node
 /**
- * StatusLine hook — context %, git info, goal from handoffs.
+ * StatusLine command — context % and git info.
  *
- * Shows: 145K 72% | main U:6 | Goal -> Current focus
- * Critical: ! 160K 80% | main U:6 | Current focus
- *
- * Writes context percentage to temp file for auto-handoff-stop.mjs.
+ * Shows: 145K 72% | main U:6
+ * Critical: ! 160K 80% | main U:6
  */
-import { readFileSync, writeFileSync, existsSync, statSync, readdirSync, unlinkSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
-import { join, resolve } from 'path';
-import { tmpdir, homedir } from 'os';
+import { join } from 'path';
 import { resolveRepoRoot } from './lib/resolve-project-root.mjs';
-
-function getSessionId(data) {
-  const sid = data.session_id || '';
-  if (sid) return sid.slice(0, 8);
-  return process.env.CLAUDE_SESSION_ID || String(process.ppid);
-}
 
 function getContextInfo(data) {
   const ctx = data.context_window || {};
@@ -29,32 +20,6 @@ function getContextInfo(data) {
   const size = ctx.context_window_size || 200000;
   const pct = Math.min(100, Math.floor(total * 100 / size));
   return { pct, display: `${(total / 1000).toFixed(1)}K` };
-}
-
-function writeContextPct(pct, data) {
-  const sid = getSessionId(data);
-  const tmp = tmpdir();
-  const file = join(tmp, `claude-context-pct-${sid}.txt`);
-  try {
-    if (existsSync(file)) {
-      try {
-        const prev = parseInt(readFileSync(file, 'utf-8').trim(), 10);
-        if (prev - pct > 10) {
-          const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
-          const logFile = join(homedir(), '.claude', 'autocompact.log');
-          writeFileSync(logFile, `${ts} | session:${sid} | ${prev}% -> ${pct}% (drop: ${prev - pct}%)\n`, { flag: 'a' });
-        }
-      } catch {}
-    }
-    writeFileSync(file, String(pct));
-    // Cleanup old files ~1% of calls
-    if (Math.random() < 0.01) {
-      const cutoff = Date.now() - 3600000;
-      for (const f of readdirSync(tmp).filter(n => n.startsWith('claude-context-pct-'))) {
-        try { if (statSync(join(tmp, f)).mtimeMs < cutoff) unlinkSync(join(tmp, f)); } catch {}
-      }
-    }
-  } catch {}
 }
 
 function getGitInfo(cwd) {
@@ -88,45 +53,6 @@ function getGitInfo(cwd) {
   } catch { return ''; }
 }
 
-function findLatestHandoff(dir) {
-  const base = join(dir, 'thoughts', 'shared', 'handoffs');
-  if (!existsSync(base)) return null;
-  const files = [];
-  (function walk(d) {
-    try {
-      for (const e of readdirSync(d, { withFileTypes: true })) {
-        const p = join(d, e.name);
-        if (e.isDirectory()) walk(p);
-        else if (e.name.endsWith('.yaml') || e.name.endsWith('.yml')) files.push(p);
-      }
-    } catch {}
-  })(base);
-  if (!files.length) return null;
-  files.sort((a, b) => {
-    const ta = (a.match(/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})/) || ['', '0'])[1];
-    const tb = (b.match(/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})/) || ['', '0'])[1];
-    return tb.localeCompare(ta);
-  });
-  return files[0];
-}
-
-function getContinuityInfo(dir) {
-  let goal = '', now = '';
-  const f = findLatestHandoff(dir);
-  if (f) {
-    try {
-      const c = readFileSync(f, 'utf-8');
-      const field = (name) => { const m = c.match(new RegExp(`^${name}:\\s*(.+?)$`, 'm')); return m ? m[1].trim().replace(/^["']|["']$/g, '') : ''; };
-      goal = field('goal') || field('topic');
-      now = field('now');
-      if (!goal) { const m = c.match(/^# (.+?)$/m); if (m) goal = m[1].replace('Handoff:', '').trim(); }
-    } catch {}
-  }
-  if (goal.length > 25) goal = goal.slice(0, 23) + '..';
-  if (now.length > 30) now = now.slice(0, 28) + '..';
-  return { goal, now };
-}
-
 function main() {
   let data = {};
   try { data = JSON.parse(readFileSync(0, 'utf-8')); } catch {}
@@ -136,11 +62,7 @@ function main() {
   else if (!existsSync(join(cwd, '.git'))) cwd = resolveRepoRoot(cwd);
 
   const { pct, display } = getContextInfo(data);
-  writeContextPct(pct, data);
   const git = getGitInfo(cwd);
-  const { goal, now } = getContinuityInfo(cwd);
-
-  const continuity = goal && now ? `${goal} -> ${now}` : now || goal;
   let ctx;
   if (pct >= 80) ctx = `\x1b[31m! ${display} ${pct}%\x1b[0m`;
   else if (pct >= 60) ctx = `\x1b[33m${display} ${pct}%\x1b[0m`;
@@ -148,8 +70,6 @@ function main() {
 
   const parts = [ctx];
   if (git) parts.push(git);
-  if (pct >= 80 && now) parts.push(now);
-  else if (continuity) parts.push(continuity);
 
   process.stdout.write(parts.join(' | '));
 }

@@ -33,7 +33,7 @@ It's distinct from the per-machine auto-memory at `~/.claude/projects/<cwd-hash>
 
 - ✗ Project-specific memory → `<workspace.root>/1-Projects/<slug>/memory.md`
 - ✗ Live "do this / not that" preferences → Folder A (auto-memory)
-- ✗ Reference docs → `<workspace.root>/3-Resources/reference/`
+- ✗ Reference docs → `<workspace.root>/4-Resources/reference/`
 - ✗ Random thoughts → `<workspace.root>/0-Inbox/`
 
 ## Naming convention

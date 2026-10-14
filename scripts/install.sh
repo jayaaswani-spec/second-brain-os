@@ -151,6 +151,9 @@ done
 # init_log if ui.sh exposes it
 type init_log >/dev/null 2>&1 && init_log
 
+# Sets PLATFORM and ARCH, which the Homebrew step needs to find brew after installing it.
+detect_platform || { warn "unsupported platform; this installer supports macOS and Linux"; exit 1; }
+
 header "second-brain-os install" 2>/dev/null || true
 
 # Override the 3-arg `step <num> <label> <cmd...>` form from ui.sh with a CCv4-port-style
@@ -203,12 +206,12 @@ fi
 
 # ---- tier-aware pipeline ----
 # Step count depends on tier:
-#   minimal:  3 foundation + 1 sys-extras + 1 keys + 1 verify + 1 tier = 7
-#   coding:   minimal + 5 (rust/uv/ccv4-bins/ccv4-python/fastedit-mcp) = 12
+#   minimal:  3 foundation + 1 sys-extras + 1 keys + 1 MCP packages + 1 git hooks + 1 verify + 1 tier = 9
+#   coding:   minimal + 5 (rust/uv/ccv4-bins/ccv4-python/fastedit-mcp) = 14
 if [ "$INSTALL_CODING" = "1" ]; then
-    TOTAL=12
+    TOTAL=14
 else
-    TOTAL=7
+    TOTAL=9
 fi
 N=0
 nx() { N=$((N+1)); printf '[%d/%d]' "$N" "$TOTAL"; }
@@ -233,6 +236,26 @@ if [ "$INSTALL_CODING" = "1" ]; then
 fi
 
 step "$(nx)  API keys"              && configure_api_keys
+
+# Point git at the repo's pre-commit hook (secret scan, skill links, Codex config).
+install_git_hooks() {
+    if [ -f "$REPO_ROOT/scripts/install-git-hooks.sh" ] && git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+        sh "$REPO_ROOT/scripts/install-git-hooks.sh" && ok "git hooks installed"
+    else
+        warn "not a git checkout (or no scripts/install-git-hooks.sh); skipped git hooks"
+    fi
+}
+step "$(nx)  Git hooks"             && install_git_hooks
+
+# Packages for the bundled local MCP server (gemini-vision); node_modules isn't committed.
+install_mcp_packages() {
+    if [ -f "$REPO_ROOT/.claude/mcp-servers/package.json" ]; then
+        npm install --prefix "$REPO_ROOT/.claude/mcp-servers" --no-audit --no-fund && ok "MCP server packages installed"
+    else
+        info "no local MCP servers to install"
+    fi
+}
+step "$(nx)  MCP server packages"   && install_mcp_packages
 step "$(nx)  Verify"                && verify_all
 
 # ---- write SBOS_TIER marker (idempotent) ----
@@ -307,12 +330,11 @@ Next steps:
 
    1. Open Claude Code in this folder:   claude
    2. Run the bootstrap skill:           /bootstrap
-        (~15 min — walks you through identity, persona, design system,
-         writes TOOLS.md from live probes)
+        (two questions: who you are, and your assistant's name and feel)
    3. After /bootstrap finishes, run:    /mcp   (authorize HTTP MCPs)
-        (~1 min — browser-OAuth for the connectors you picked)
+        (~1 min — browser sign-in for each connector)
    4. Optional features: copy .env.example to .env and fill in any of
-      the 5 optional keys you want to use. None are required.
+      the optional keys you want to use. None are required.
 NEXT
 
 if [ "$INSTALL_CODING" != "1" ]; then
@@ -321,7 +343,7 @@ if [ "$INSTALL_CODING" != "1" ]; then
    💡 Want surgical FastEdit AST code edits and tldr structural reads?
       Re-run with:   ./scripts/install.sh --with-coding
       Adds Rust + uv + bloks + tldr + FastEdit MCP (~15 min extra).
-      Knowledge-worker flows (briefings, /todo, /find) don't need it.
+      Knowledge-worker flows (/briefing, /find, /flow) don't need it.
 
 CODING_HINT
 fi

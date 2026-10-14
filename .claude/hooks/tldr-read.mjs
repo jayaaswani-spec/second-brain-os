@@ -16,8 +16,8 @@
  *  - Targeted reads (offset/limit already set)
  */
 import { readFileSync, statSync } from 'fs';
-import { execSync } from 'child_process';
-import { extname, basename } from 'path';
+import { execFileSync } from 'child_process';
+import { extname, basename, resolve, sep } from 'path';
 
 const CODE_EXTENSIONS = new Set([
   '.py', '.ts', '.tsx', '.js', '.jsx', '.mjs',
@@ -106,6 +106,11 @@ function main() {
   // Pass through: bypassed patterns
   if (BYPASS_PATTERNS.some(p => p.test(filePath))) { console.log('{}'); return; }
 
+  // Pass through: files outside the project. This hook answers 'allow' for the
+  // reads it rewrites, so it must never pre-approve a read elsewhere on disk.
+  const projectDir = resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
+  if (!resolve(filePath).startsWith(projectDir + sep)) { console.log('{}'); return; }
+
   // Pass through: targeted reads (offset/limit already set)
   if (toolInput.offset || (toolInput.limit && toolInput.limit < 100)) { console.log('{}'); return; }
 
@@ -117,7 +122,8 @@ function main() {
   // Run tldr extract — falls through if tldr not installed
   let info;
   try {
-    const out = execSync(`tldr extract "${filePath}" --format json`, {
+    // execFileSync, not a shell string: a path can't inject a command.
+    const out = execFileSync('tldr', ['extract', filePath], {
       encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'],
     });
     info = JSON.parse(out);
@@ -127,8 +133,9 @@ function main() {
   const fileName = basename(filePath);
   const parts = formatNavMap(info, fileName);
 
-  // Only inject if we got meaningful content
-  if (!parts.some(p => p.startsWith('## '))) { console.log('{}'); return; }
+  // Only inject (and truncate) when tldr found structure; an imports-only map
+  // would cut the read short without telling the model where anything is.
+  if (!parts.some(p => p === '## Functions' || p === '## Classes')) { console.log('{}'); return; }
 
   parts.push('', '---', 'Read specific lines: offset=N limit=M');
 

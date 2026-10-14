@@ -21,7 +21,7 @@ As of v0.2.0 the installer has two tiers:
 - **Minimal (default).** Foundation toolchain (Homebrew, Node 20, git, jq, Claude Code) + `.env.example` + verify. ~3-5 min on a Mac with the foundation already present. Right choice for knowledge-worker forks (briefings, `/find`, design skills, briefing/meeting prep).
 - **Coding (`--with-coding`).** Adds Rust, uv, the `bloks` + `tldr-cli` binaries, and the FastEdit MCP. ~15 min extra. Required for FastEdit-MCP-backed surgical AST edits and the tldr-read hook's structural summaries.
 
-The installer writes `SBOS_TIER=minimal|coding` to `~/.second-brain-os.env` so `/bootstrap` knows which tier you're on and adjusts its tool-probe panel accordingly.
+The installer writes `SBOS_TIER=minimal|coding` to `~/.second-brain-os.env` to record which tier you installed; its verify step prints it. `/bootstrap` doesn't depend on it.
 
 **Use the installer if:** you want the fastest path, you're on a fresh Mac, or you're happy with the defaults (Homebrew install, brew-managed Rust, brew-managed `uv`).
 
@@ -93,7 +93,7 @@ The installer writes both automatically. To do it manually:
 # 1. Copy the annotated example (already in the repo):
 cp .env.example .env  # then edit .env, fill in only the keys you need
 
-# 2. Write the tier marker so /bootstrap knows you're on minimal:
+# 2. Record the tier (the installer's verify step prints it):
 echo 'SBOS_TIER=minimal' >> ~/.second-brain-os.env
 ```
 
@@ -112,7 +112,13 @@ rg --version 2>/dev/null || echo "ripgrep not installed — /find falls back to 
 grep SBOS_TIER ~/.second-brain-os.env   # SBOS_TIER=minimal
 ```
 
-If all those return cleanly, minimal-tier install is complete. Open Claude Code and run `/bootstrap` next.
+Then install the git hooks once, so every commit keeps skills linked for both tools, regenerates `.codex/config.toml` from `.mcp.json` and scans for secrets:
+
+```bash
+bash scripts/install-git-hooks.sh
+```
+
+If all those return cleanly, minimal-tier install is complete. Open Claude Code and run `/bootstrap` next: it asks two questions (who you are, and your assistant's name and vibe), fills in the rest from your machine, and offers the extras at the end.
 
 ---
 
@@ -157,12 +163,9 @@ exec zsh  # reload
 
 Probe: `bloks --version`, `tldr --version`.
 
-### B4. ContinuousClaude V4.7 Python deps
+### B4. FastEdit
 
 ```bash
-# From the repo root:
-pip install -r .claude/tools/requirements.txt
-
 # FastEdit (with mlx + mcp extras — pulls the local 1.7B merge model on first run)
 uv tool install 'fastedits[mlx,mcp]'
 ```
@@ -202,7 +205,7 @@ Probe: `jq '.mcpServers.fastedit' .mcp.json` should print the entry.
 ### B6. Update tier marker
 
 ```bash
-# Overwrite the SBOS_TIER line so /bootstrap probes the CCv4 toolchain:
+# Record the coding tier:
 sed -i.bak -E 's|^SBOS_TIER=.*|SBOS_TIER=coding|' ~/.second-brain-os.env && rm -f ~/.second-brain-os.env.bak
 grep SBOS_TIER ~/.second-brain-os.env   # SBOS_TIER=coding
 ```
@@ -239,12 +242,11 @@ Every key is **optional**. Add only the ones you need:
 | `GEMINI_API_KEY` | gemini-vision MCP (image/PDF/video analysis) | https://aistudio.google.com/apikey (free 15 req/min) |
 | `FIRECRAWL_API_KEY` | firecrawl MCP (web scrape/crawl) | https://firecrawl.dev |
 | `ANTHROPIC_API_KEY` | FastEdit merge model + SDK-based skill evals | https://console.anthropic.com |
-| `EXA_API_KEY` | `company-research` + `people-research` skills (Python bridge) | https://exa.ai |
 | `NIA_API_KEY` | NIA docs MCP | https://trynia.ai |
 | `HF_TOKEN` | FastEdit model pull if gated on Hugging Face | https://huggingface.co/settings/tokens |
 | `ATLASSIAN_BASIC_AUTH` | REST-direct Atlassian calls (file uploads) | https://id.atlassian.com/manage-profile/security/api-tokens |
 
-> **Important:** MCPs read keys from your **shell env**, not from `.env` — Claude Code launches its child processes without sourcing `.env`. For MCP keys (`GEMINI_API_KEY`, `FIRECRAWL_API_KEY`), also `export` them in `~/.zshrc`. For skill-only keys (Anthropic / Exa / NIA / Atlassian) `.env` works because the Python bridges read it directly.
+> **Important:** MCPs read keys from your **shell env**, not from `.env` — Claude Code launches its child processes without sourcing `.env`. For MCP keys (`GEMINI_API_KEY`, `FIRECRAWL_API_KEY`), also `export` them in `~/.zshrc`. For skill-only keys (Anthropic / NIA / Atlassian) `.env` works because the Python bridges read it directly.
 
 The simplest pattern:
 
@@ -271,25 +273,15 @@ If those keys are set, your first `claude` launch shows zero red MCP errors.
 
 ### Opt-in connectors (Slack / Atlassian / Figma)
 
-These are **not in `.mcp.json` by default** as of v0.2.0. They're added during `/bootstrap` Step 2.5 — the bootstrap skill asks which ones you use via multi-select and appends them interactively. The canonical entries (including Slack's required `clientId` + `callbackPort`) live in `.mcp.json` `_notes.opt_in_*` as a single source of truth.
+These are **not in `.mcp.json` by default**. `/bootstrap` doesn't ask about them during setup: it reports which connectors are already live, and at the end offers to add Slack, Atlassian or Figma for you. Accepting runs `python3 .claude/skills/bootstrap/scripts/apply.py add-connectors <names>`, which copies each canonical entry (including Slack's required `clientId` + `callbackPort`) from `.mcp.json` `_notes.opt_in_*` into `mcpServers` and refreshes the Codex config (`.codex/config.toml`) to match. You can run that command yourself any time.
 
-After bootstrap adds them, run `/mcp` inside Claude Code to authorize each via browser-OAuth:
+After they're added, run `/mcp` inside Claude Code to authorize each via browser-OAuth (in Codex: `codex mcp login <name>`):
 
 - **slack** — opens Slack's OAuth page; a workspace admin needs to approve the app once
 - **figma** — opens Figma's OAuth page
 - **atlassian** — opens Atlassian's OAuth page
 
-If you skipped `/bootstrap` and want a connector added manually, copy the canonical entry from `.mcp.json` `_notes.opt_in_<name>` into `mcpServers`, then run `/mcp`.
-
-### Google Workspace CLI
-
-Separate from MCPs — used by `/briefing` and `/end-of-day` for calendar/mail/drive:
-
-```bash
-gws auth login
-```
-
-Follow the browser prompt to grant: calendar, drive, gmail.modify, documents, spreadsheets, presentations, tasks.
+Google Workspace (Gmail, Calendar, Drive) has no entry here: connect it through Claude's own connectors with `/mcp`, or Codex's connectors in Codex. Slack isn't available in Codex yet: Codex can't use Claude Code's Slack app, and the generated config always leaves Slack commented out.
 
 ---
 
@@ -334,13 +326,6 @@ Claude Code reads from the shell env, not `.env`. Source `.env` from your shell 
 
 **Installer reports "foundation toolchain detected, skipping steps 1-3."**
 Correct behavior when `gh`, `claude`, `jq`, and `node` are already on PATH — the foundation steps are already covered. The installer no longer prompts for API keys (those live in `.env`; see `.env.example`), so there's nothing to re-prompt for.
-
-**`/bootstrap` Step 2 shows CCv4 tools as missing on a minimal install.**
-Make sure the tier marker is set:
-```bash
-grep SBOS_TIER ~/.second-brain-os.env  # should print SBOS_TIER=minimal
-```
-If the marker is missing, write it (`echo 'SBOS_TIER=minimal' >> ~/.second-brain-os.env`). Bootstrap branches on the marker — without it, it falls back to probing all tools and reports CCv4 as missing.
 
 **Want to upgrade minimal → coding later?**
 Just run `./scripts/install.sh --with-coding`. The installer is additive — it skips foundation steps that are already done and adds the coding-tier steps on top. The `SBOS_TIER` marker gets updated to `coding` automatically.

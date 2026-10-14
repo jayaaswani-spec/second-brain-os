@@ -14,4 +14,4 @@ if ! command -v gitleaks >/dev/null 2>&1; then
   echo "Install it with: brew install gitleaks" >&2
 fi
 
-echo "Git hooks installed (pre-commit secret scan via gitleaks)."
+echo "Git hooks installed (pre-commit: skill link sync + Codex config refresh + gitleaks secret scan)."

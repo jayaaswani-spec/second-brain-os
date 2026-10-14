@@ -4,17 +4,16 @@
  *
  * Four sub-handlers, dispatched by tool name:
  *
- *   62a. Slack send guard       — mcp__slack__slack_send_message |
- *                                  slack_schedule_message
+ *   62a. Message send guard     — Slack send/schedule/canvas, Gmail
+ *                                  send_message/reply/forward, iMessage
  *   62b. GitHub destructive-push — Bash matching `git push --force` OR
  *                                  `git push` targeting main/master
- *   62c. Atlassian write guard  — mcp__atlassian__(create|edit|transition|
- *                                  add|update|delete).*
+ *   62c. Atlassian write guard  — <atlassian server>__(create|edit|
+ *                                  transition|add|update|execute).*
  *   62d. rm -rf guard           — Bash matching `rm -rf` outside a whitelist
  *
  * Output is `permissionDecision: "ask"` (modern hookSpecificOutput format).
- * Per locked decision 2026-05-17: blocks are show-and-confirm, not
- * show-and-deny. Goal is friction at the moment of action, not refusal.
+ * Blocks are show-and-confirm, not show-and-deny. Goal is friction at the moment of action, not refusal.
  *
  * Spec: locked decision — show-and-confirm friction on irreversible external
  *       actions (Slack send, force push to main/master, Atlassian writes,
@@ -40,26 +39,55 @@ const SAFE_RM_PATHS = [
   ".workflow/",
 ];
 
-const SLACK_SEND_TOOLS = new Set([
-  "mcp__slack__slack_send_message",
-  "mcp__slack__slack_schedule_message",
+// The same service ships under many MCP server names: local servers
+// (mcp__slack__), claude.ai connectors (mcp__claude_ai_Slack__), and the
+// desktop app's ID-named connectors (mcp__<connector-uuid>__). Match on the action
+// suffix alone, never the server prefix, so a server rename can't silently
+// disable the guard. Keep settings.json matchers in sync.
+const SLACK_SEND_ACTIONS = new Set([
+  "slack_send_message",
+  "slack_schedule_message",
+  "slack_create_canvas",
+  "slack_update_canvas",
+]);
+
+// Other messaging surfaces: the Gmail connector (send_message, reply,
+// forward; drafts stay unguarded) and iMessage. The desktop app's own
+// session tools (mcp__ccd_*) also have a send_message action; those talk to
+// other Claude sessions, not people, so they are skipped.
+const MESSAGE_SEND_ACTIONS = new Set([
+  "send_message",
+  "reply",
+  "forward",
+  "send_imessage",
 ]);
 
 // Atlassian MCP write/mutate tools (Jira + Confluence). Reads (get*, search*,
-// fetch) and metadata calls (getJiraProject*, atlassianUserInfo) are NOT
-// guarded — they're idempotent and safe.
-const ATLASSIAN_WRITE_TOOLS = new Set([
-  "mcp__atlassian__createJiraIssue",
-  "mcp__atlassian__editJiraIssue",
-  "mcp__atlassian__transitionJiraIssue",
-  "mcp__atlassian__addCommentToJiraIssue",
-  "mcp__atlassian__addWorklogToJiraIssue",
-  "mcp__atlassian__createIssueLink",
-  "mcp__atlassian__createConfluencePage",
-  "mcp__atlassian__updateConfluencePage",
-  "mcp__atlassian__createConfluenceFooterComment",
-  "mcp__atlassian__createConfluenceInlineComment",
+// fetch, executeRead) and metadata calls (getJiraProject*, atlassianUserInfo)
+// are NOT guarded — they're idempotent and safe.
+const ATLASSIAN_WRITE_ACTIONS = new Set([
+  "createJiraIssue",
+  "editJiraIssue",
+  "transitionJiraIssue",
+  "addCommentToJiraIssue",
+  "addOrEditJiraIssueComment",
+  "addWorklogToJiraIssue",
+  "createIssueLink",
+  "createConfluencePage",
+  "createConfluenceContent",
+  "updateConfluencePage",
+  "updateConfluenceContent",
+  "createConfluenceFooterComment",
+  "createConfluenceInlineComment",
+  "executeWrite",
+  "executeDestructive",
 ]);
+
+// Returns the action suffix of an MCP tool name (mcp__<server>__<action>).
+function mcpAction(toolName) {
+  if (!toolName.startsWith("mcp__")) return null;
+  return toolName.slice(toolName.lastIndexOf("__") + 2);
+}
 
 function truncate(s, n = 200) {
   return s.length > n ? s.slice(0, n) + "…" : s;
@@ -126,36 +154,40 @@ function handleBash(toolInput) {
   return null;
 }
 
-// 62a. Slack send guard
-function handleSlackSend(toolName, toolInput) {
-  const channel = toolInput.channel_id || toolInput.channel || toolInput.channel_name || "<unknown channel>";
-  const text = (toolInput.text || toolInput.markdown_text || "").toString();
+// 62a. Message send guard
+function handleMessageSend(toolName, action, toolInput) {
+  const isSlack = action.startsWith("slack_");
+  const target = toolInput.channel_id || toolInput.channel || toolInput.channel_name ||
+    toolInput.to || toolInput.recipient || toolInput.recipients || toolInput.thread_id ||
+    toolInput.message_id || toolInput.canvas_id || "<unknown recipient>";
+  const text = (toolInput.message || toolInput.text || toolInput.markdown_text ||
+    toolInput.body || toolInput.content || toolInput.subject || "").toString();
   const preview = truncate(text);
-  const scheduleNote = toolName === "mcp__slack__slack_schedule_message"
+  const scheduleNote = action === "slack_schedule_message"
     ? `\n  Scheduled for: ${toolInput.post_at || "<unspecified>"}`
     : "";
 
   return [
-    "📨 About to send Slack message — confirm send?",
+    `📨 About to send a message (${action}) — confirm send?`,
     "",
     `Tool: ${toolName}`,
-    `Channel: ${channel}${scheduleNote}`,
+    `To: ${truncate(Array.isArray(target) ? target.join(", ") : String(target), 120)}${scheduleNote}`,
     "",
     "Message preview:",
     ...preview.split("\n").map((l) => "  > " + l),
     "",
-    "Slack sends are immediate and visible to channel members.",
+    isSlack ? "Slack sends are immediate and visible to channel members."
+            : "Sends are immediate and reach real people.",
     "Per locked rule: no auto-send to messaging surfaces without explicit user approval.",
   ].join("\n");
 }
 
 // 62c. Atlassian write guard
-function handleAtlassianWrite(toolName, toolInput) {
-  const action = toolName.replace("mcp__atlassian__", "");
-
+function handleAtlassianWrite(action, toolInput) {
   // Identify the target resource if possible
   let identity = "(new resource)";
-  if (toolInput.issueIdOrKey) identity = `issue ${toolInput.issueIdOrKey}`;
+  if (action.startsWith("execute")) identity = `operation ${toolInput.name || "<unnamed>"}`;
+  else if (toolInput.issueIdOrKey) identity = `issue ${toolInput.issueIdOrKey}`;
   else if (toolInput.pageId) identity = `page ${toolInput.pageId}`;
   else if (toolInput.projectKey) identity = `project ${toolInput.projectKey}`;
   else if (toolInput.spaceKey || toolInput.spaceId) identity = `space ${toolInput.spaceKey || toolInput.spaceId}`;
@@ -193,10 +225,14 @@ const main = async () => {
 
   if (toolName === "Bash") {
     reason = handleBash(toolInput);
-  } else if (SLACK_SEND_TOOLS.has(toolName)) {
-    reason = handleSlackSend(toolName, toolInput);
-  } else if (ATLASSIAN_WRITE_TOOLS.has(toolName)) {
-    reason = handleAtlassianWrite(toolName, toolInput);
+  } else {
+    const action = mcpAction(toolName);
+    if (SLACK_SEND_ACTIONS.has(action) ||
+        (MESSAGE_SEND_ACTIONS.has(action) && !toolName.startsWith("mcp__ccd_"))) {
+      reason = handleMessageSend(toolName, action, toolInput);
+    } else if (ATLASSIAN_WRITE_ACTIONS.has(action)) {
+      reason = handleAtlassianWrite(action, toolInput);
+    }
   }
 
   if (!reason) return;

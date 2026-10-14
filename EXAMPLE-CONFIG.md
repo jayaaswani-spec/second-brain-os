@@ -22,18 +22,16 @@ Their Configuration section would look like:
 - `workspace.inbox` = `0-Inbox`
 - `workspace.projects` = `1-Projects`
 - `workspace.areas` = `2-Areas`
-- `workspace.coding` = `3-Coding`
 - `workspace.resources` = `4-Resources`
 - `workspace.archive` = `5-Archive`
+- `workspace.area_apps` = `2-Areas/<area>/apps` — shipped, maintained apps an Area owns (own git, gitignored)
+- `workspace.project_apps` = `1-Projects/COD-*/app` — a code project's single gitignored `app/` while it is being built
 
 ### templates (under `<workspace.root>/<workspace.resources>/templates/`)
 - `templates.project_claude` = `project-claude-template.md`
 - `templates.project_memory` = `project-memory-template.md`
 - `templates.code_claude` = `code-project-claude-template.md`
 - `templates.persona` = `persona/`
-
-### indexes
-- `indexes.code_projects` = `<workspace.root>/<workspace.resources>/code-projects.md`
 
 ### scripts
 - `scripts.project_query` = `<workspace.root>/<workspace.resources>/templates/project-query.sh`
@@ -53,7 +51,7 @@ Their Configuration section would look like:
 - `assistant.vibe` = `Curious and methodical — like a research partner who's read the field deeply and helps you build on it.`
 - `assistant.emoji` = `📚`
 
-### setup_completed
+### lifecycle
 - `setup_completed` = `2026-XX-XX`  ← used by /bootstrap as the re-run gate (T2)
 ```
 
@@ -64,9 +62,9 @@ Their Configuration section would look like:
 | Field | Used by | Example value |
 |-------|---------|---------------|
 | `workspace.root` | All skills resolve `<workspace.root>` to this when reading paths | `workspace` (default), `brain`, `<assistant>-workspace`, `vault` |
-| `workspace.inbox` / `projects` / `areas` / `coding` / `resources` / `archive` | Skills resolve `<workspace.inbox>` etc. — almost never changed from defaults | `0-Inbox`, `1-Projects`, `2-Areas`, `3-Coding`, `4-Resources`, `5-Archive` |
+| `workspace.inbox` / `projects` / `areas` / `resources` / `archive` | Skills resolve `<workspace.inbox>` etc. — almost never changed from defaults | `0-Inbox`, `1-Projects`, `2-Areas`, `4-Resources`, `5-Archive` |
 | `templates.persona` | `/bootstrap` reads from this folder for SOUL/USER/IDENTITY templates | `persona/` (default; lives at `<workspace.root>/<workspace.resources>/templates/persona/`) |
-| `indexes.code_projects` | `/new-project` (code-repo branch) appends rows here; `/sync-indexes` audits drift | `<workspace.root>/<workspace.resources>/code-projects.md` |
+| `workspace.area_apps` / `project_apps` | Where runnable code lives: an Area's `apps/<app>/` once shipped, a COD project's `app/` while being built. Both gitignored, each with its own git | `2-Areas/<area>/apps`, `1-Projects/COD-*/app` |
 | `scripts.project_query` | `/briefing`, `/prune-projects`, root CLAUDE.md docs reference this for live project list | `<workspace.root>/<workspace.resources>/templates/project-query.sh` |
 | `user.name` | Display name in scaffolds, signatures, voice ("Morning <user.name>!") | `Alex`, `Riley`, `Sam` |
 | `user.full_name` | Full legal/display name (e.g., for email signature variants) | `Alex Rivera`, `Riley T. Chen` |
@@ -89,7 +87,7 @@ If you prefer to manually configure (skipping the smoke test, persona regenerati
 
 1. Edit the Configuration section in `CLAUDE.md` with your values
 2. Edit `SOUL.md`, `USER.md`, `IDENTITY.md`, `README.md`, `TOOLS.md` directly to fill in your `<assistant.name>` and `<user.name>` everywhere
-3. Create the workspace folder skeleton via `mkdir -p <workspace.root>/{0-Inbox,1-Projects,2-Areas,3-Coding,4-Resources/{templates,research,reference,meetings,contacts,design-systems,onboarding},5-Archive}` (2-Areas starts empty — HQ workstations grow into it; 3-Coding is flat — one folder per repo)
+3. Create the workspace folder skeleton via `mkdir -p <workspace.root>/{0-Inbox,1-Projects,2-Areas,4-Resources/{templates,research,reference,meetings,contacts,design-systems,briefings,meeting-prep,organization-reports},5-Archive}` (2-Areas starts empty — thin Areas (rules, memory, generated index) are added as recurring workstreams emerge; code never goes in a committed folder, see `workspace.area_apps` / `project_apps`)
 4. Copy templates to make them available: `cp -r workspace/4-Resources/templates/persona <workspace.root>/4-Resources/templates/`
 
 The skills will work either way — they only depend on the Configuration section being filled in correctly.
@@ -98,10 +96,6 @@ The skills will work either way — they only depend on the Configuration sectio
 
 ## Re-running `/bootstrap`
 
-By default, `/bootstrap` refuses to run if `setup_completed` is set (T2 invariant — protects against accidental data loss). To genuinely redo setup:
+By default, `/bootstrap` refuses to run if `setup_completed` is set (T2 invariant — protects against accidental data loss). To genuinely redo setup, delete the `setup_completed` line in CLAUDE.md, then run `/bootstrap` again.
 
-```
-/bootstrap --reconfigure
-```
-
-Even with `--reconfigure`, T1 still applies — persona files with user edits will prompt for confirmation before overwriting.
+Even then, T1 still applies — persona files with user edits will prompt for confirmation before overwriting.

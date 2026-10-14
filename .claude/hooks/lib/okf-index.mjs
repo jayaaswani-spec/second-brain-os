@@ -1,9 +1,8 @@
 // okf-index.mjs — machine-generated OKF index.md builder.
 //
-// Implements the keystone of the OKF adoption (Pass 7 / decision #15 amendment,
-// 2026-06-28): index.md is permitted IFF auto-generated from frontmatter, never
-// hand-edited. An auto-generated index is a derived cache of the frontmatter that
-// #15 already calls the source of truth — so it cannot drift.
+// index.md is allowed only when it's generated from frontmatter, never hand-edited.
+// A generated index is a derived cache of the frontmatter, which stays the
+// source of truth, so it cannot drift.
 //
 // Pure: no external deps, no network, no LLM. Deterministic + idempotent — same
 // directory contents always produce byte-identical output (no wall-clock stamp),
@@ -14,11 +13,14 @@
 
 import { readdirSync, readFileSync, writeFileSync, statSync, existsSync } from "node:fs";
 import { join, basename, dirname, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const GEN_MARKER = "<!-- AUTO-GENERATED OKF index — do not edit by hand.";
 const GEN_HEADER =
   `${GEN_MARKER} Edit each file's frontmatter instead; this is regenerated on ` +
   `write by the okf-index hook and by the /reindex skill. Source of truth = the files themselves. -->`;
+// Headers written by earlier generators; files carrying one are still ours to rewrite.
+const LEGACY_GEN_MARKERS = ["<!-- MACHINE-GENERATED (thin-Areas index)"];
 
 // Directories never descended into or listed.
 const SKIP_DIRS = new Set([
@@ -26,7 +28,7 @@ const SKIP_DIRS = new Set([
   "dist", "build", ".next", ".tldr", ".workflow",
 ]);
 
-// Base-3 canonical ordering (C10). Listed first, in this order, then others alpha.
+// inputs/working/outputs sort first in this order when present, then others alpha.
 const BASE3_ORDER = ["inputs", "working", "outputs"];
 
 // Known OS files get a stable type label even without OKF frontmatter.
@@ -40,11 +42,28 @@ function isDir(p) {
   try { return statSync(p).isDirectory(); } catch { return false; }
 }
 
-// A directory containing .git is a nested/external repo (cloned fork, code repo).
-// OKF indexes our knowledge content, NOT external repos — skip these entirely
-// (mirrors the 3-Coding/ and github-forks/ exemption).
+// Code homes are external repos, not OKF bundles: Area apps (and the apps/ folder
+// holding them), COD/archive app/ subtrees, and cloned forks. Matched by path so
+// repos without git are covered.
+const OUTER_REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const CODE_HOME_RE =/\/2-Areas\/[^/]+\/apps(\/|$)|\/(1-Projects|5-Archive)\/[^/]+\/app(\/|$)|\/4-Resources\/github-forks\/[^/]+(\/|$)/;
+
+// A directory inside a nested/external repo (cloned fork, code repo) is skipped
+// entirely: the directory itself or any ancestor below the outer workspace repo
+// carries its own .git, or the path sits in a code home.
 function isGitRepo(p) {
-  return existsSync(join(p, ".git"));
+  if (CODE_HOME_RE.test(p)) return true;
+  let dir = p;
+  for (;;) {
+    if (existsSync(join(dir, ".git"))) {
+      // The outer workspace repo is the one this module ships in (.claude/hooks/lib/),
+      // or any other checkout of it (a worktree indexing the main checkout, or back).
+      return dir !== OUTER_REPO_ROOT && !existsSync(join(dir, ".claude", "hooks", "lib", "okf-index.mjs"));
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
 }
 
 function isHidden(name) {
@@ -66,9 +85,15 @@ export function parseFrontmatter(text) {
     if (!m) continue;
     let [, key, val] = m;
     if (val === "") { out[key] = ""; continue; }
-    // Strip surrounding quotes.
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-      val = val.slice(1, -1);
+    const q = val[0];
+    const close = q === '"' || q === "'" ? val.indexOf(q, 1) : -1;
+    if (close !== -1) {
+      // Quoted scalar: keep what's inside the quotes, drop any trailing comment.
+      val = val.slice(1, close);
+    } else {
+      // Plain scalar: " # " starts a trailing comment. A "#" glued to a word stays,
+      // so Slack channels in descriptions ("asked in #general") survive.
+      val = val.replace(/\s+#(\s.*)?$/, "");
     }
     // Inline list: [a, b, c]
     if (val.startsWith("[") && val.endsWith("]")) {
@@ -160,8 +185,12 @@ function projectDescription(text, fm) {
   return "";
 }
 
-function normalizeAreaName(value) {
-  return String(value || "").trim().split("/").pop().replace(/^hq-/, "");
+// parent_hq may be a bare name ("health"), a path ("2-Areas/health/")
+// or a wikilink ("[[2-Areas/health]]"); all name the same Area. A legacy
+// "hq-" prefix is dropped.
+export function normalizeAreaName(value) {
+  const parts = String(value || "").trim().replace(/^\[\[|\]\]$/g, "").split("/").filter(Boolean);
+  return (parts.pop() || "").trim().replace(/^hq-/, "");
 }
 
 function projectsForArea(dirPath) {
@@ -274,17 +303,30 @@ export function buildIndexContent(dirPath, { rootForTitle } = {}) {
 }
 
 // Returns true only when a hand-written index.md exists (no generated marker) —
-// we refuse to clobber a human file, surfacing it instead.
-function isHandWritten(indexPath) {
-  if (!existsSync(indexPath)) return false;
-  try { return !readFileSync(indexPath, "utf8").startsWith(GEN_MARKER); } catch { return false; }
+// we refuse to clobber a human file, surfacing it instead. Area indexes are
+// generator-owned by contract (thin-Areas model), so they are never refused:
+// whatever is there was written by this or another generator.
+function isHandWritten(indexPath, dirPath) {
+  if (isAreaDir(dirPath) || !existsSync(indexPath)) return false;
+  let text;
+  try { text = readFileSync(indexPath, "utf8"); } catch { return false; }
+  if ([GEN_MARKER, ...LEGACY_GEN_MARKERS].some((m) => text.startsWith(m))) return false;
+  return !isGenIndexesOutput(text, dirPath);
+}
+
+// An older index script wrote indexes with no header: "# <dir name>" followed only by
+// "* [name](link) - description" bullets. Treat that as generated, not human.
+function isGenIndexesOutput(text, dirPath) {
+  const lines = text.split("\n").filter((l) => l.trim());
+  return lines.length > 1 && lines[0] === `# ${basename(dirPath)}` &&
+    lines.slice(1).every((l) => /^\* \[[^\]]*\]\([^)]*\) - /.test(l));
 }
 
 // Write index.md for one directory. { status: 'written'|'unchanged'|'skipped'|'refused', path }
 export function writeIndexForDir(dirPath, opts = {}) {
   const indexPath = join(dirPath, "index.md");
   if (isGitRepo(dirPath)) return { status: "skipped-repo", path: indexPath };
-  if (isHandWritten(indexPath)) return { status: "refused", path: indexPath };
+  if (isHandWritten(indexPath, dirPath)) return { status: "refused", path: indexPath };
   const content = buildIndexContent(dirPath, opts);
   if (content === null) return { status: "skipped", path: indexPath };
   const next = content.endsWith("\n") ? content : content + "\n";
