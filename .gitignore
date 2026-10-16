@@ -1,7 +1,12 @@
 node_modules/
 .DS_Store
 *.DS_Store
-workspace/3-Coding/
+# Code and session handoffs never enter git. `*/` matches whatever the workspace
+# folder is called, so renaming it keeps these ignored.
+*/2-Areas/*/apps/*
+*/1-Projects/COD-*/app/
+*/5-Archive/*/app/
+*/4-Resources/handoffs/
 .venv/
 __pycache__/
 *.pyc
@@ -10,5 +15,7 @@ build/
 .env
 .tldr/
 .workflow/
+.agents/skills/*-workspace/
 .claude/skills/*-workspace/
 .claude/intent-detector-log.jsonl
+.claude/settings.local.json

@@ -27,8 +27,7 @@ Re-running `/briefing` on the same day produces a timestamped file rather than o
 ## What doesn't belong here
 
 - ✗ Meeting prep → `meeting-prep/` (next door)
-- ✗ Weekly/monthly digests → planned `/weekly-digest` skill will write elsewhere
-- ✗ Standup notes → planned `/standup` skill will write to its own folder
+- ✗ Weekly digests and standup notes → ask `/briefing` for that mode; save them where the request says, not as a morning brief
 - ✗ Raw transcripts → `meetings/`
 
 ## How `<assistant.name>` uses this folder
@@ -39,7 +38,7 @@ Re-running `/briefing` on the same day produces a timestamped file rather than o
 
 ## Brief structure (what's inside each file)
 
-Each brief follows a stable section order so downstream tooling (planned `/weekly-digest`, `/standup`) can parse it:
+Each brief follows a stable section order so later briefs and other tooling can parse it:
 
 1. `# Morning brief — YYYY-MM-DD` (H1)
 2. `## What needs you today` — top 5-7 urgent items (from email + calendar + Jira + Slack mentions)
@@ -58,7 +57,7 @@ Sections backed by tools you don't have configured are silently omitted from the
 
 - **Don't delete past briefings.** They're cheap to keep and provide historical context. `/find` searches them.
 - **Archive on a cadence if the folder gets crowded.** After a year or so, move older briefings to `<workspace.root>/5-Archive/briefings/YYYY/` to keep this folder navigable.
-- **The format may evolve.** As new skills get built (`/standup`, `/weekly-digest`), the brief structure may add sections. Old briefs stay in their original format; new briefs use new format. No retroactive rewrites.
+- **The format may evolve.** As `/briefing` gains sections, the brief structure may change. Old briefs stay in their original format; new briefs use new format. No retroactive rewrites.
 
 ## Privacy note
 

@@ -3,17 +3,17 @@
  * PreCompact hook — auto-handoff before context compaction.
  *
  * Parses transcript JSONL, extracts session state (todos, tool calls,
- * files modified, errors), writes auto-handoff to thoughts/shared/handoffs/.
+ * files modified, errors), writes an auto-handoff via lib/handoff-writer.mjs
+ * (<workspace.root>/<workspace.resources>/handoffs/<session>/, gitignored).
  *
  * Input: JSON with trigger, session_id, transcript_path
  * Output: JSON with continue: true, systemMessage
  *
- * VAL-020 fix 2026-05-11: generateHandoff() returns BODY only — no
+ * generateHandoff() returns BODY only — no
  * frontmatter. trigger/session metadata is passed to writeHandoff() via
  * `extra` so a single YAML block (date/type/trigger/session/project_root/
- * repo_root) is emitted. Two stacked frontmatter blocks broke
- * /resume-handoff (parser only reads the first; project_root was in the
- * second and got dropped).
+ * repo_root) is emitted — YAML parsers only read the first frontmatter
+ * block, so everything must live in one.
  */
 import { readFileSync, existsSync } from 'fs';
 import { writeHandoff } from './lib/handoff-writer.mjs';
@@ -32,60 +32,75 @@ function parseTranscript(transcriptPath) {
   try { content = readFileSync(transcriptPath, 'utf-8'); } catch { return summary; }
 
   const allToolCalls = [];
+  const callsById = new Map();
   let lastAssistant = '';
+
+  // Claude Code transcripts keep each turn under entry.message, with tool
+  // calls as tool_use blocks in assistant content and their results as
+  // tool_result blocks in the next user entry.
+  const recordCall = (name, input, id) => {
+    const tc = { name, input, success: true };
+    const lower = name.toLowerCase();
+    if (lower === 'todowrite') {
+      const todos = (input || {}).todos || [];
+      summary.lastTodos = todos.map((t, i) => ({
+        id: t.id || `todo-${i}`,
+        content: t.content || '',
+        status: t.status || 'pending',
+      }));
+    }
+    if (['edit', 'write', 'multiedit', 'notebookedit'].includes(lower)) {
+      const fp = (input || {}).file_path || (input || {}).notebook_path || (input || {}).path;
+      if (fp) summary.filesModified.add(fp);
+    }
+    if (lower === 'bash' && (input || {}).command) tc.input = { command: input.command };
+    allToolCalls.push(tc);
+    if (id) callsById.set(id, tc);
+  };
+
+  const recordError = (tc, text) => {
+    if (tc) tc.success = false;
+    const label = tc ? ((tc.input || {}).command || tc.name) : 'unknown';
+    summary.errors.push(`${label}: ${String(text).slice(0, 200)}`);
+  };
 
   for (const line of content.split('\n')) {
     if (!line.trim()) continue;
     let entry;
     try { entry = JSON.parse(line); } catch { continue; }
 
-    // Last assistant message
+    const msg = entry.message;
+    const blocks = Array.isArray(msg?.content) ? msg.content : null;
+
+    if (blocks) {
+      for (const b of blocks) {
+        if (!b || typeof b !== 'object') continue;
+        if (b.type === 'text' && msg.role === 'assistant' && b.text) lastAssistant = b.text;
+        else if (b.type === 'tool_use' && b.name) recordCall(b.name, b.input, b.id);
+        else if (b.type === 'tool_result' && b.is_error) {
+          const text = Array.isArray(b.content)
+            ? b.content.map(c => c.text || '').join(' ')
+            : (b.content || 'Tool failed');
+          recordError(callsById.get(b.tool_use_id), text);
+        }
+      }
+      continue;
+    }
+    if (msg?.role === 'assistant' && typeof msg.content === 'string') { lastAssistant = msg.content; continue; }
+
+    // Older flat formats.
     if ((entry.role === 'assistant' || entry.type === 'assistant') && typeof entry.content === 'string') {
       lastAssistant = entry.content;
     }
-
-    // Tool calls
     const toolName = entry.tool_name || (entry.type === 'tool_use' ? entry.name : null);
-    if (toolName) {
-      const tc = { name: toolName, input: entry.tool_input, success: true };
-
-      if (toolName.toLowerCase() === 'todowrite') {
-        const todos = (entry.tool_input || {}).todos || [];
-        summary.lastTodos = todos.map((t, i) => ({
-          id: t.id || `todo-${i}`,
-          content: t.content || '',
-          status: t.status || 'pending',
-        }));
-      }
-
-      if (['edit', 'write'].includes(toolName.toLowerCase())) {
-        const fp = (entry.tool_input || {}).file_path || (entry.tool_input || {}).path;
-        if (fp) summary.filesModified.add(fp);
-      }
-
-      if (toolName.toLowerCase() === 'bash' && (entry.tool_input || {}).command) {
-        tc.input = { command: entry.tool_input.command };
-      }
-
-      allToolCalls.push(tc);
-    }
-
-    // Errors from tool results
+    if (toolName) recordCall(toolName, entry.tool_input || entry.input);
     if (entry.type === 'tool_result' || entry.tool_result != null) {
       const result = entry.tool_result || {};
-      if (typeof result === 'object') {
-        const exitCode = result.exit_code ?? result.exitCode;
-        if (exitCode != null && exitCode !== 0) {
-          if (allToolCalls.length) allToolCalls[allToolCalls.length - 1].success = false;
-          const msg = result.stderr || result.error || 'Command failed';
-          const cmd = allToolCalls.length ? (allToolCalls[allToolCalls.length - 1].input || {}).command || 'unknown' : 'unknown';
-          summary.errors.push(`${cmd}: ${msg.slice(0, 200)}`);
-        }
+      const exitCode = typeof result === 'object' ? (result.exit_code ?? result.exitCode) : null;
+      if (exitCode != null && exitCode !== 0) {
+        recordError(allToolCalls[allToolCalls.length - 1], result.stderr || result.error || 'Command failed');
       }
-      if (entry.error) {
-        summary.errors.push(entry.error.slice(0, 200));
-        if (allToolCalls.length) allToolCalls[allToolCalls.length - 1].success = false;
-      }
+      if (entry.error) recordError(allToolCalls[allToolCalls.length - 1], entry.error);
     }
   }
 
@@ -155,7 +170,8 @@ function generateHandoff(summary, sessionName) {
 }
 
 function main() {
-  const input = JSON.parse(readFileSync(0, 'utf-8'));
+  let input;
+  try { input = JSON.parse(readFileSync(0, 'utf-8')); } catch { input = {}; }
   const trigger = input.trigger || 'auto';
   const sessionId = input.session_id || 'unknown';
   const sessionName = sessionId.slice(0, 8) || 'unknown';
@@ -176,9 +192,9 @@ function main() {
     });
     message = `[PreCompact:auto] Created ${path} (project: ${projectRoot})`;
   } else if (trigger === 'auto') {
-    message = '[PreCompact:auto] No transcript available. Consider running /create_handoff manually.';
+    message = '[PreCompact:auto] No transcript available. Consider running /handoff manually.';
   } else {
-    message = '[PreCompact] Consider running /create_handoff before compacting.';
+    message = '[PreCompact] Consider running /handoff before compacting.';
   }
 
   console.log(JSON.stringify({ continue: true, systemMessage: message }));

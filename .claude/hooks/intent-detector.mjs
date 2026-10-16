@@ -1,22 +1,13 @@
 #!/usr/bin/env node
 /**
- * intent-detector.mjs — UserPromptSubmit hook v1 (LOG-ONLY)
+ * intent-detector.mjs — UserPromptSubmit hook
  *
- * Item 7 of Pass 2c. Reads the user's prompt from stdin, regex-tests it
- * against a narrow set of project-lifecycle trigger patterns, and if any
- * match, appends a JSONL entry to .claude/intent-detector-log.jsonl. NEVER
- * injects context; NEVER blocks; ALWAYS exits 0.
- *
- * After 7 days of logging, audit the JSONL — true-positive rate, missed
- * triggers, false positives — then tune the regex set and ship v2 (item 8)
- * which keeps the same matching but ALSO emits additionalContext to suggest
- * the right slash command in-line.
- *
- * Why narrow first: a chatty hook trains the user to ignore suggestions.
- * A silent
- * v1 lets us measure precision/recall on real traffic without polluting the
- * conversation. Once we know which patterns fire correctly, v2 only suggests
- * on the high-precision ones.
+ * Reads the user's prompt from stdin, regex-tests it against a narrow set of
+ * project-lifecycle trigger patterns, and on a match (a) appends a JSONL
+ * entry to .claude/intent-detector-log.jsonl (keeps precision auditable) and
+ * (b) emits hookSpecificOutput.additionalContext nudging the assistant toward
+ * the matching skill — a soft suggestion the model may ignore on false
+ * positives. NEVER blocks; ALWAYS exits 0.
  *
  * Failure modes are silent on purpose — a hook that errors loudly on every
  * prompt is worse than one that silently no-ops. Any uncaught error → exit 0.
@@ -41,9 +32,14 @@ const main = async () => {
   const prompt = (event.prompt || "").toString();
   if (!prompt) return;
 
-  // 2. Named pattern set. Keep narrow — recall < precision in v1. Each entry
-  //    has a name (for audit), a regex, and the slash command we'd suggest
-  //    in v2 if this fires.
+  // Skip machine-generated turns: subagent hand-backs, task notifications,
+  // system reminders and slash-command expansions. They quote other text
+  // (often test prompts), so matching them only produces false suggestions.
+  const MACHINE_PREFIXES = ["<agent-message", "<task-notification", "<scheduled-task", "[SYSTEM NOTIFICATION", "<system-reminder", "<local-command-", "<command-"];
+  if (MACHINE_PREFIXES.some((p) => prompt.trimStart().startsWith(p))) return;
+
+  // 2. Named pattern set. Keep narrow — precision over recall. Each entry
+  //    has a name (for audit), a regex, and the slash command to suggest.
   const patterns = [
     // /new-project triggers — both meta-project and code-repo cases
     { name: "new-project-explicit",     regex: /\bnew project\b/i,                                                 suggest: "/new-project" },
@@ -86,8 +82,8 @@ const main = async () => {
     { name: "is-there-a-note",          regex: /\bis there (a |any )?(note|project|research|doc) (on|for|about)\b/i,  suggest: "/find" },
 
     // /contact triggers — recall a person
-    { name: "tell-me-about-person",     regex: /\btell me about \w+/i,                                                 suggest: "/contact" },
-    { name: "who-is-x",                 regex: /\bwho is \w+( again)?\??/i,                                            suggest: "/contact" },
+    { name: "tell-me-about-person",     regex: /\b[Tt]ell me about [A-Z][a-z]+\b/,                                     suggest: "/contact" },
+    { name: "who-is-x",                 regex: /\b[Ww]ho is [A-Z][a-z]+( again)?\??/,                                  suggest: "/contact" },
     { name: "context-on-person",        regex: /\b(what[''']?s my context with|context on|remind me about) \w+/i,      suggest: "/contact" },
     { name: "contact-explicit",         regex: /^\/?contact\b/i,                                                       suggest: "/contact" },
 
@@ -106,9 +102,24 @@ const main = async () => {
     { name: "whats-in-my-inbox",        regex: /\bwhat[''']?s in (the |my )?inbox\b/i,                                  suggest: "/inbox-process" },
 
 
-    // /sync-indexes triggers — code-repo bookkeeping audit
-    { name: "sync-indexes-explicit",    regex: /\b(sync indexes|sync code projects|audit code repos)\b/i,              suggest: "/sync-indexes" },
-    { name: "orphan-repos",             regex: /\b(orphan repos|whats? in 3-Coding|whats? in coding that isn[''']?t)\b/i, suggest: "/sync-indexes" },
+    // /reindex app-audit triggers — Area app manifest bookkeeping
+    { name: "sync-indexes-explicit",    regex: /\b(sync indexes|audit (code repos|apps|app manifests))\b/i,            suggest: "/reindex app-audit" },
+    { name: "orphan-repos",             regex: /\b(orphan (repos|apps)|apps? (without|missing) (a )?manifests?)\b/i,   suggest: "/reindex app-audit" },
+
+    // /os-guide triggers — OS-shaped questions answered from canonical files, not memory
+    { name: "os-guide-explicit",        regex: /^\/?os-guide\b/i,                                                      suggest: "/os-guide" },
+    { name: "how-does-os-work",         regex: /\bhow (does|do) (the |my |our )?(os|second brain|workspace|para|memory system|area routing|routing map|contacts? (system|schema))s? work\b/i, suggest: "/os-guide" },
+    { name: "where-does-x-belong",      regex: /\bwhere (does|do|should) [\w' -]{1,30}(live|go|belong|get (saved|filed|stored))\b/i, suggest: "/os-guide" },
+    { name: "what-skills-exist",        regex: /\bwhat skills (do (i|we) have|exist|are (available|installed))\b/i,   suggest: "/os-guide" },
+    { name: "config-token-question",    regex: /\b(configuration (section|token|value)|workspace\.(root|projects|areas|area_apps|project_apps|resources|archive))\b/i, suggest: "/os-guide" },
+
+    // Flow skills — the planning and build path (docs/agents/project-context.md)
+    { name: "which-skill-for-this",     regex: /\b(which|what) (skill|flow|path) (should (i|we) use|fits|do (i|we) use)\b/i, suggest: "/flow" },
+    { name: "how-to-tackle",            regex: /\b(how (should|do) we (tackle|approach|go from here)|where do (i|we) (start|begin) with)\b/i, suggest: "/flow" },
+    { name: "write-the-spec",           regex: /\b(write (up )?the spec|spec (this|it) up|turn this into a (spec|prd))\b/i, suggest: "/to-spec" },
+    { name: "break-into-tickets",       regex: /\b(break (this|it) (up |down )?into tickets|slice (this|it) up|make tickets for (this|it))\b/i, suggest: "/to-tickets" },
+    { name: "triage-queue",             regex: /\b(triage (the )?(queue|intake|backlog|tickets|help ?desk|[A-Z][A-Z0-9]+-\d+)|work through the intake)\b/i, suggest: "/triage" },
+    { name: "too-big-for-a-session",    regex: /\b(too big for one session|wayfind (this|it)|chart (this|it) out|map (this|it) out)\b/i, suggest: "/wayfinder" },
   ];
 
   // 3. Test all patterns. Multiple may match (e.g., "new MCP server project" hits two).
@@ -120,8 +131,9 @@ const main = async () => {
 
   // 4. Append to JSONL log. Bound the prompt size in the log so secrets / huge
   //    pastes don't get persisted forever.
-  const cwd = event.cwd || process.cwd();
-  const logFile = join(cwd, ".claude", "intent-detector-log.jsonl");
+  // Log at the project root, not wherever the session's shell happens to be.
+  const root = process.env.CLAUDE_PROJECT_DIR || event.cwd || process.cwd();
+  const logFile = join(root, ".claude", "intent-detector-log.jsonl");
   const logDir = dirname(logFile);
   if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
 
@@ -138,9 +150,25 @@ const main = async () => {
   } catch {
     // Disk full, permissions, whatever — silent. The user's prompt must not be blocked.
   }
+
+  // 5. Surface the suggestion as additionalContext. Soft nudge — the
+  //    model decides; a false positive costs one ignored sentence.
+  const suggestions = entry.would_suggest.join(", ");
+  const context =
+    `<intent-detector> The user's phrasing matches the trigger patterns for: ${suggestions}. ` +
+    `If that intent is real, invoke the matching skill via the Skill tool instead of handling it ad hoc. ` +
+    `If it's a false positive, ignore this note silently.`;
+  process.stdout.write(
+    JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "UserPromptSubmit",
+        additionalContext: context,
+      },
+    })
+  );
 };
 
-// v1 contract: never inject context, never block. Any path → exit 0.
+// Contract: never block. Any path → exit 0.
 main()
   .catch(() => {})
   .finally(() => process.exit(0));

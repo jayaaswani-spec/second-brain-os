@@ -38,6 +38,7 @@ ok()    { printf '       %s✓%s %s\n' "$GREEN"  "$RESET" "$1"; }
 skip()  { printf '       %s•%s %s\n' "$DIM"    "$RESET" "$1"; }
 info()  { printf '       %s→%s %s\n' "$BLUE"   "$RESET" "$1"; }
 warn()  { printf '       %s!%s %s\n' "$YELLOW" "$RESET" "$1"; }
+die()   { printf '       %s✗%s %s\n' "$RED"    "$RESET" "$1" >&2; exit 1; }
 
 # Run a command quietly; output is appended to log file.
 # VERBOSE=1 streams output to terminal as well.

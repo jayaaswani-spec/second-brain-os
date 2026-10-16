@@ -4,7 +4,7 @@ Completed or inactive work. **Move, never delete** — provenance matters; stora
 
 ## Purpose
 
-`5-Archive/` is the long-term memory of the workspace. When a project finishes (or gets killed), it moves here with its `CLAUDE.md` status flipped to `done`. When research goes stale, it moves here. When a code repo stops being actively developed, the index row stays but the repo may move to `3-Coding/archive/`.
+`5-Archive/` is the long-term memory of the workspace. When a project finishes (or gets killed), it moves here with its `CLAUDE.md` status flipped to `done`. When research goes stale, it moves here. When a code project is archived, its ignored `app/` subtree moves with it (`5-Archive/<slug>/app/`); note in its `CLAUDE.md` what it was, its remote and why it stopped.
 
 This folder exists because **deleting kills context**. Six months from now, "did I ever work on X?" should always be answerable. The answer might be "yes, here's what we shipped and why we stopped" — but it's never "no record exists."
 
@@ -20,7 +20,7 @@ This folder exists because **deleting kills context**. Six months from now, "did
 
 - ✗ Active projects → `1-Projects/`
 - ✗ Currently-relevant reference docs → `4-Resources/reference/` (don't archive things you'll re-read soon)
-- ✗ Code repos still under development → `3-Coding/<scope>/`
+- ✗ Code still being built → its `COD-` project's `app/` in `1-Projects/`
 - ✗ A project that's "paused" — keep in `1-Projects/` with `status: paused` frontmatter; archive only when truly done
 
 ## Structure
@@ -29,11 +29,11 @@ Archived projects keep their original folder structure — moved as-is:
 
 ```
 5-Archive/
-├── 2025-11-ai-task-force-planning/    # original YYYY-MM-slug preserved
+├── PROJ-2025-11-team-planning/        # original folder name preserved
 │   ├── CLAUDE.md                       # status: done (auto-flipped by /archive-project)
 │   ├── memory.md                       # full history retained
 │   └── (whatever else was in the project folder)
-├── 2026-01-q1-qbr-prep/
+├── PROJ-2026-01-q1-review-prep/
 ├── briefings/                          # optional: old briefings archived in bulk
 │   └── 2024/
 └── research/                           # optional: stale research moved here

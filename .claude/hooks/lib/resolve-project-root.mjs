@@ -1,11 +1,10 @@
 // resolve-project-root.mjs — runtime project-shape resolver for CCv4 hooks.
 // Three resolvers + module-level parse cache. No external deps.
-// Spec: ccv4-port-plan.md Phase 4 / VAL-017. Locked 2026-05-11.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 
-// Per-process cache: repo_root -> { root, projects, coding, resources } | null
+// Per-process cache: repo_root -> { root, projects, areas, resources } | null
 const configCache = new Map();
 
 function walkUpForGit(start) {
@@ -50,11 +49,13 @@ function parseConfig(repoRoot) {
       while ((m = re.exec(section)) !== null) {
         tokens[m[1].trim()] = m[2].trim();
       }
+      // An unfilled <placeholder> (a fork before /bootstrap) counts as unset.
+      const val = (k, d) => (tokens[k] && !tokens[k].startsWith("<") ? tokens[k] : d);
       cfg = {
-        root: tokens["workspace.root"] || null,
-        projects: tokens["workspace.projects"] || null,
-        coding: tokens["workspace.coding"] || null,
-        resources: tokens["workspace.resources"] || null,
+        root: val("workspace.root", "workspace"),
+        projects: val("workspace.projects", "1-Projects"),
+        areas: val("workspace.areas", "2-Areas"),
+        resources: val("workspace.resources", "4-Resources"),
       };
     }
   } catch (err) {
@@ -84,18 +85,18 @@ export function resolveStateRoot(cwd) {
   const repoRoot = walkUpForCLAUDE(cwd);
   if (!repoRoot) return resolve(cwd);
   const cfg = parseConfig(repoRoot);
-  if (cfg && cfg.root && (cfg.projects || cfg.coding)) {
+  if (cfg && cfg.root && (cfg.projects || cfg.areas)) {
     // Walk up from cwd looking for the multi-project shape.
     let cur = resolve(cwd);
     while (cur.startsWith(repoRoot) && cur !== repoRoot) {
       const rel = cur.slice(repoRoot.length + 1).split(sep);
-      // <root>/<projects>/<slug>
+      // <root>/<projects>/<slug> (a COD project's app/ resolves to the project)
       if (cfg.projects && rel.length >= 3 && rel[0] === cfg.root && rel[1] === cfg.projects) {
         return join(repoRoot, rel[0], rel[1], rel[2]);
       }
-      // <root>/<coding>/<scope>/<name>
-      if (cfg.coding && rel.length >= 4 && rel[0] === cfg.root && rel[1] === cfg.coding) {
-        return join(repoRoot, rel[0], rel[1], rel[2], rel[3]);
+      // <root>/<areas>/<area>/apps/<name>
+      if (cfg.areas && rel.length >= 5 && rel[0] === cfg.root && rel[1] === cfg.areas && rel[3] === "apps") {
+        return join(repoRoot, rel[0], rel[1], rel[2], rel[3], rel[4]);
       }
       cur = dirname(cur);
     }

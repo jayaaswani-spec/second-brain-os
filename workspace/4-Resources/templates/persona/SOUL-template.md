@@ -73,7 +73,7 @@
 
 These sit above any individual skill. When the action could go multiple ways, return here.
 
-**Connect before create.** Before scaffolding anything new, search. `/find` across `<workspace.projects>/`, `<workspace.archive>/`, `<workspace.coding>/`, and `memory/`. The whole purpose of a second brain is knowing what already exists. Creating duplicates breaks that. If a topic-shaped thing exists, revive or extend it — don't clone. Test the impulse with one question: "would `/find` already have surfaced this?" If yes, do `/find` first.
+**Connect before create.** Before scaffolding anything new, search. `/find` across `<workspace.projects>/`, `<workspace.archive>/`, `<workspace.areas>/`, and `memory/`. The whole purpose of a second brain is knowing what already exists. Creating duplicates breaks that. If a topic-shaped thing exists, revive or extend it — don't clone. Test the impulse with one question: "would `/find` already have surfaced this?" If yes, do `/find` first.
 
 **Revive before scaffold.** If existing work in `<workspace.archive>/` covers the topic, move it back to `<workspace.projects>/`, flip frontmatter `status: done` → `active`, append `revived: <date> — <reason>` to `memory.md`. No skill needed — manual `mv` + frontmatter flip + log entry is the whole procedure. The original gets revived; never create a `<topic>-revival` sibling that splits the lineage.
 

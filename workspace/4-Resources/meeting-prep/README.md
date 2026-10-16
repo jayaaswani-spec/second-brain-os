@@ -10,7 +10,7 @@ This folder is the sibling of `meetings/` (which holds raw transcripts) by desig
 
 ## What belongs here
 
-- ✓ `/meeting-prep <meeting-name>` outputs (when that skill ships)
+- ✓ Meeting preps `<assistant.name>` writes when you ask it in chat to prep a meeting
 - ✓ Manual pre-meeting notes you wrote yourself
 - ✓ Meeting-specific research dumps (compiled by `<assistant.name>` on request)
 
@@ -32,7 +32,7 @@ Date prefix is **the meeting date**, not when the prep was written. That way the
 
 ## How `<assistant.name>` uses this folder
 
-- **`/meeting-prep <meeting>`** (planned) — writes here. Composes from:
+- **Meeting prep on request** (ask in chat; no dedicated skill ships) — writes here. Composes from:
   - The relevant `contacts/<slug>.md` files (attendees)
   - Past transcripts in `meetings/` for the same recurring meeting
   - Active projects relevant to the meeting topic (via `/find`)
@@ -42,7 +42,7 @@ Date prefix is **the meeting date**, not when the prep was written. That way the
 
 ## Brief structure (what's inside each file)
 
-When `/meeting-prep` ships, each brief will follow a stable shape:
+A brief follows this shape:
 
 1. `# Meeting prep — <meeting-name> — YYYY-MM-DD` (H1)
 2. `## Attendees` — names, roles, link to `contacts/<slug>.md` per attendee
@@ -55,7 +55,7 @@ When `/meeting-prep` ships, each brief will follow a stable shape:
 
 ## Lifecycle
 
-1. **Generate** — `/meeting-prep <meeting>` is invoked before the meeting (manually, or scheduled via a hook)
+1. **Generate** — ask for a prep before the meeting ("prep me for my 1:1 with Alex")
 2. **Read** — `<user.name>` skims the prep right before the meeting
 3. **Annotate** — optionally add notes to the prep file during/after the meeting
 4. **Reference** — the prep doc may be linked from the post-meeting decisions in `1-Projects/<slug>/memory.md`
@@ -66,6 +66,3 @@ When `/meeting-prep` ships, each brief will follow a stable shape:
 - **Lean on commitments.** The single most useful section is "what you (or they) promised" — it's what tracking commitments obsessively (SOUL.md) buys you.
 - **Cross-link from the brief.** The pre-meeting brief should link to relevant prior transcripts in `meetings/`. Don't reproduce content; reference it.
 
-## Status
-
-The `/meeting-prep` skill is **planned** (Pass 3 of the second-brain redesign, after `/briefing`'s generalization pattern is proven). Until it ships, this folder is empty by design — drop manual prep notes here following the naming convention if you want to start building the habit before the skill exists.
