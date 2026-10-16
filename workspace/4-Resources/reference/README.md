@@ -29,7 +29,7 @@ Durable lookup material — the org chart, the tool inventory, the employee dire
 reference/
 ├── employee-directory.xlsx              # HR export, updated quarterly
 ├── tool-inventory.md                    # what's in your stack + verification probes
-├── samba-org-chart-2026-q4.md           # org snapshot with date suffix
+├── acme-org-chart-2026-q4.md           # org snapshot with date suffix
 ├── acronyms-glossary.md                 # internal jargon (PAM, MSci, etc.)
 ├── proposal-template-one-pager.md       # reusable structure
 └── priority-slack-channels.md           # canonical channel list (also in USER.md)
@@ -38,13 +38,13 @@ reference/
 ## Naming convention
 
 - **Timeless docs**: no date prefix — `employee-directory.xlsx`, `tool-inventory.md`
-- **Snapshots that age**: date suffix — `samba-org-chart-2026-q4.md` (so you can keep multiple snapshots and tell them apart)
+- **Snapshots that age**: date suffix — `acme-org-chart-2026-q4.md` (so you can keep multiple snapshots and tell them apart)
 - **Use kebab-case** — `tool-inventory.md` not `Tool Inventory.md`
 
 ## How `<assistant.name>` uses this folder
 
 - **`/find <topic>`** — searches `reference/` content as part of its search scope. The employee directory is especially useful: "who's the EM for the data team?" → `/find data team EM` may surface the directory entry.
-- **`/contact-add`** / **`/contact-research`** (planned) — when adding a new contact, may pull seed data from `employee-directory.xlsx` if the person is in your org
+- **New contacts** — when you add a contact by hand (schema in `contacts/README.md`), seed it from `employee-directory.xlsx` if the person is in your org
 - **`/briefing`** Step 0 — reads `USER.md` "Priority Slack Channels" section; that list can also live as a standalone `reference/priority-slack-channels.md` if you'd rather keep `USER.md` lean
 - **Manual reads** — when `<user.name>` asks "what tools do I have configured?" or "who's on Jordan's team?", `<assistant.name>` reads files here directly
 

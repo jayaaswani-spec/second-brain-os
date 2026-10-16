@@ -4,9 +4,9 @@ Active initiatives with a clear deliverable and a defined "done" state.
 
 ## Purpose
 
-A project in this workspace is **time-bound work with a specific outcome**. Each project lives at `<workspace.root>/1-Projects/YYYY-MM-<slug>/` and gets a `CLAUDE.md` (status frontmatter) plus an append-only `memory.md` (decision log).
+A project in this workspace is **time-bound work with a specific outcome**. Each project lives at `<workspace.root>/1-Projects/<PREFIX>-YYYY-MM-<slug>/` and gets a `CLAUDE.md` (status frontmatter), an append-only `memory.md` (decision log) and a generated `index.md`.
 
-If something will "always be ongoing" (your job role, a hobby, weekly responsibilities) it's *not* a project — it's an **Area**. A long-running area of responsibility becomes an HQ workstation under `2-Areas/<name>/` (see `2-Areas/README.md` and the HQ model in `CLAUDE.md`); pure recurring rhythms (daily triage) get handled by skills (`/briefing`) or stay in memory.
+If something will "always be ongoing" (your job role, a hobby, weekly responsibilities) it's *not* a project — it's an **Area**. A long-running area of responsibility becomes a thin Area under `2-Areas/<name>/` (see `2-Areas/README.md` and the Area model in `CLAUDE.md`), and its content lives in projects that name it with `parent_hq:`; pure recurring rhythms (daily triage) get handled by skills (`/briefing`) or stay in memory.
 
 ## What belongs here
 
@@ -22,21 +22,21 @@ If something will "always be ongoing" (your job role, a hobby, weekly responsibi
 - ✗ "Daily email triage" — recurring activity → handled by `/briefing`
 - ✗ "Random research on LLM pricing" → `4-Resources/research/`
 - ✗ "Half-baked idea I'm not sure about" → `0-Inbox/`, triaged via `/inbox-process`
-- ✗ A code repo → `3-Coding/<scope>/<name>/` (use `/new-project` with code-repo branch)
+- ✗ Committed code → a `COD-` project's ignored `app/` while it's being built, or the owning Area's `apps/<name>/` once shipped
 
 ## Structure
 
-Each project is scaffolded by `/new-project` and gets exactly two mandatory files:
+Each project is scaffolded by `/new-project` and gets three files:
 
 ```
-1-Projects/2026-10-q4-pricing-redesign/
+1-Projects/PROJ-2026-10-q4-pricing-redesign/
 ├── CLAUDE.md         # status frontmatter (active|paused|done), project-type,
 │                     # one-line summary, key links — under 60 lines
-└── memory.md         # append-only decision log
-                      # (anything else you add — drafts, sub-docs — your call)
+├── memory.md         # append-only decision log
+└── index.md          # generated list of what's in the folder; never hand-edited
 ```
 
-Everything beyond those two files is project-specific. Add a `drafts/` folder if you're iterating on content. Add `research/` if you're doing project-scoped lit review. The shape is yours.
+No folders are pre-created. When content arrives, add a folder named for what it holds (`drafts/`, `research/`, `meetings/`). The shape is yours. A `COD-` project may also hold one gitignored `app/` folder for its code while it's being built.
 
 ### `CLAUDE.md` frontmatter (the contract)
 
@@ -83,7 +83,7 @@ Append-only. Each entry is a dated block describing decisions, blockers, next ac
 
 ## Conventions
 
-- **Folder name = `YYYY-MM-<slug>`** — date prefix orders chronologically, slug describes the work in 2-4 words
+- **Folder name = `<PREFIX>-YYYY-MM-<slug>`** — `PROJ-` by default, `COD-` for a code effort, `VID-` for a single video; the date orders chronologically, the slug describes the work in 2-4 words
 - **`memory.md` is append-only** — same rule as the daily memory log; never rewrite, only append
 - **Keep `CLAUDE.md` under 60 lines** — it's the project's identity card; decisions go in `memory.md`, not here
 - **One project per folder** — don't bundle unrelated work; if you find yourself splitting attention, those are two projects
@@ -94,7 +94,7 @@ Move to `5-Archive/` (via `/archive-project`) when:
 - All deliverables shipped
 - Project was killed or descoped
 - Inactive for 30+ days with no plan to resume
-- Transformed into a code repo (cleaner home in `3-Coding/`)
+- Shipped as a maintained app (its code moves from `app/` to the owning Area's `apps/<name>/`)
 
 Always append a "wrap-up" entry to `memory.md` before archiving — what shipped, what didn't, what `<user.name>` learned. Provenance survives.
 

@@ -2,7 +2,24 @@
 # pre-commit — secret scan on staged changes (BLOCKING).
 # Your second brain will hold notes, configs, and scaffolds — this stops an
 # accidentally pasted API key or token from ever entering git history.
+# It also keeps .claude/skills linked to .agents/skills (the one skill tree)
+# and regenerates .codex/config.toml from .mcp.json.
 set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if command -v node >/dev/null 2>&1; then
+  node scripts/link-agent-skills.mjs
+  git add .claude/skills
+  # Keep Codex's MCP servers in step with .mcp.json.
+  if [ -f .mcp.json ] && [ -f scripts/codex-config-from-mcp.mjs ]; then
+    node scripts/codex-config-from-mcp.mjs >/dev/null
+    git add .codex/config.toml
+  fi
+else
+  echo "pre-commit: WARNING — node not installed; skipping .claude/skills link sync and Codex config refresh." >&2
+fi
 
 if command -v gitleaks >/dev/null 2>&1; then
   if ! gitleaks protect --staged --no-banner --redact; then

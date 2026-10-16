@@ -20,6 +20,11 @@ Lets Claude actually *see* images, PDFs, documents, and videos via Google's Gemi
 
 ### One-time setup
 
+0. **Install its packages** (`node_modules/` isn't committed, so a fresh clone needs this once; `./scripts/install.sh` does it for you):
+   ```bash
+   npm install --prefix .claude/mcp-servers
+   ```
+
 1. **Get a free Gemini API key** from https://aistudio.google.com/apikey — starts with `AIzaSy...`. Free tier is 15 req/min, plenty for personal use.
 
 2. **Export it in your shell** (so Claude Code inherits it; we deliberately do NOT bake it into `.mcp.json`):
@@ -43,11 +48,10 @@ Lets Claude actually *see* images, PDFs, documents, and videos via Google's Gemi
 
 ### Dependencies
 
-`npm install` was already run in this folder. If `node_modules/` ever gets blown away:
+`node_modules/` is gitignored. Run this once after cloning, and again if it ever gets deleted:
 
 ```bash
-cd .claude/mcp-servers
-npm install
+npm install --prefix .claude/mcp-servers
 ```
 
 ### Why the API key isn't in `.mcp.json`

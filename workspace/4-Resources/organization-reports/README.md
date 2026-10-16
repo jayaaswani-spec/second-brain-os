@@ -11,7 +11,7 @@ This folder is the catch-all for "agent-generated analysis that's bigger than a 
 ## What belongs here
 
 - ✓ Org chart syntheses ("team-org-snapshot-2026-Q4.md")
-- ✓ Cross-functional initiative maps ("ai-initiatives-across-samba-2026-10.md")
+- ✓ Cross-functional initiative maps ("ai-initiatives-across-teams-2026-10.md")
 - ✓ Communication pattern audits ("email-volume-by-team-2026-Q3.md")
 - ✓ Activity reports ("github-activity-last-90-days.md")
 - ✓ Meeting frequency analyses ("meeting-load-by-week-2026.md")

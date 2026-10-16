@@ -19,7 +19,7 @@ install_ccv4_python() {
             || die "uv pip install -r $req failed"
         info "Python deps installed from $req"
     else
-        warn "$req not found — skipping Python deps"
+        skip "no $req in this repo — no Python deps to install"
     fi
 
     if [ "${NO_FASTEDIT_MODEL:-0}" = "1" ]; then

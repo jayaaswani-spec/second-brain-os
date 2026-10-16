@@ -2,15 +2,15 @@
 # project-query.sh — scan all <workspace.root>/<workspace.projects>/*/CLAUDE.md
 # (resolved from root CLAUDE.md's Configuration section — typically
 # workspace/1-Projects/), extract YAML frontmatter, output a sortable
-# table. Source of truth for project discovery (no INDEX file, per
-# system-design.md §7 lock #15).
+# table. Source of truth for project discovery (frontmatter, not a
+# hand-kept index file).
 #
 # Path resolution: this script lives at
 # <workspace.root>/<workspace.resources>/templates/project-query.sh and uses
-# its own location (../../<workspace.projects>) to find the projects folder,
-# so it works for any user as long as the canonical path holds. If the
-# Configuration section in root CLAUDE.md changes those folder names, the
-# `cd` line below should match.
+# its own location (../../<workspace.projects>) to find the projects folder.
+# The folder name comes from `workspace.projects` in the root CLAUDE.md
+# Configuration (three levels up), falling back to 1-Projects when the value
+# is missing or still a `<...>` placeholder.
 #
 # Usage:
 #   ./project-query.sh                  # all active projects, sorted by days_touched desc
@@ -38,9 +38,22 @@ while [ $# -gt 0 ]; do
 done
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-PROJECTS_DIR="$SCRIPT_DIR/../../1-Projects"
+ROOT_CLAUDE_MD="$SCRIPT_DIR/../../../CLAUDE.md"
 
-[ -d "$PROJECTS_DIR" ] || { echo "1-Projects/ not found at $PROJECTS_DIR" >&2; exit 1; }
+# Read a workspace.<name> token from the root CLAUDE.md Configuration.
+# Prints nothing when the file or line is missing or the value is a <...> placeholder.
+token() {
+  local v
+  v=$(sed -nE "s/^- \`workspace\.$1\` = \`([^\`]+)\`.*/\1/p" "$ROOT_CLAUDE_MD" 2>/dev/null | head -1)
+  case "$v" in "<"*">") v="" ;; esac
+  printf '%s' "$v"
+}
+
+PROJECTS_NAME=$(token projects)
+PROJECTS_NAME=${PROJECTS_NAME:-1-Projects}
+PROJECTS_DIR="$SCRIPT_DIR/../../$PROJECTS_NAME"
+
+[ -d "$PROJECTS_DIR" ] || { echo "$PROJECTS_NAME/ not found at $PROJECTS_DIR" >&2; exit 1; }
 
 mtime_epoch() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1"; }
 fmt_date()    { date -r "$1" +%Y-%m-%d 2>/dev/null || date -d "@$1" +%Y-%m-%d; }

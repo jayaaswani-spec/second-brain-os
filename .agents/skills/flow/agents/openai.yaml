@@ -1,0 +1,5 @@
+interface:
+  display_name: "Flow"
+  short_description: "Pick the right path through the planning and build skills"
+policy:
+  allow_implicit_invocation: true

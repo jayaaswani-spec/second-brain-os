@@ -1,14 +1,13 @@
 # Design Systems
 
-Each subfolder is a portable design system in [`DESIGN.md`](../docs/spec.md)
-format. Pick one in the top-bar **Design system** dropdown and every skill
-will read it as part of its system prompt.
+Each subfolder is a portable design system in `DESIGN.md` format. Pick one with
+`/use-design <brand>`: it copies that brand's `DESIGN.md` to the repo root, where
+every `design-*` skill reads it.
 
 ## What's bundled
 
 - **`default/`** — Neutral Modern. Hand-authored starter for the OD spec.
 - **`warm-editorial/`** — Warm Editorial. Hand-authored serif starter.
-- **`sid-youtube/`** — Sid Dani's approved operational Editorial Tactile YouTube identity.
 - **69 product systems**, imported from
   [`VoltAgent/awesome-design-md`](https://github.com/VoltAgent/awesome-design-md)
   (the [`getdesign@latest`](https://www.npmjs.com/package/getdesign) npm
@@ -56,17 +55,7 @@ any new label and it lands at the bottom of the dropdown.
 
 ## Refreshing the bundled set
 
-The 69 product systems are pulled from the upstream npm package. To re-sync
-to the latest hashes:
-
-```bash
-curl -sL $(npm view getdesign dist.tarball) -o /tmp/getdesign.tgz
-tar -xzf /tmp/getdesign.tgz -C /tmp
-node --experimental-strip-types scripts/sync-design-systems.ts
-```
-
-For now, the original importer lives at the top of the
-[`excessive-climb` branch](../) — re-run it against a fresh tarball.
+The product systems were imported from the upstream `getdesign` npm package. To add a brand of your own, create `<brand>/DESIGN.md` here in the same format.
 
 ## Attribution
 

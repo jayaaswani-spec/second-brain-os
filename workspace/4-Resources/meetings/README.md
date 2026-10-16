@@ -1,6 +1,6 @@
 # meetings
 
-Meeting transcripts and summaries — the raw input that other skills (`/briefing`, `/meeting-prep`) read to ground their work in what was actually said.
+Meeting transcripts and summaries — the raw input that other skills (`/briefing`, meeting prep) read to ground their work in what was actually said.
 
 ## Purpose
 
@@ -34,7 +34,7 @@ The suffix (`-tactiq` / `-gemini` / `-notes`) signals the source, which matters 
 ## How `<assistant.name>` uses this folder
 
 - **`/briefing`** — optionally cross-references `meetings/` for the "Notes & cross-references" section when today's calendar mentions topics with prior transcripts
-- **`/meeting-prep <meeting>`** (planned) — reads relevant past transcripts for the same recurring meeting, surfaces "what was discussed last time," "what you promised," "follow-ups"
+- **Meeting prep** (ask `<assistant.name>` in chat to prep a meeting; no dedicated skill ships) — reads relevant past transcripts for the same recurring meeting, surfaces "what was discussed last time," "what you promised," "follow-ups"
 - **`/find <topic>`** — searches transcripts for prior mentions; the chief-of-staff value of "what did we decide about X two months ago?" lives here
 - **`/contact-log`** (manual mode) — when you log an interaction with someone, you may reference a transcript in this folder for context
 
@@ -42,7 +42,7 @@ The suffix (`-tactiq` / `-gemini` / `-notes`) signals the source, which matters 
 
 If both a Gemini summary AND a Tactiq transcript exist for the same meeting, **prefer the Gemini summary for skimming** and **drop into the Tactiq transcript only when you need verbatim detail**. Gemini extracts action items and decisions automatically; Tactiq is the source of truth for "did so-and-so actually say X."
 
-`/meeting-prep` follows this rule by default — Gemini first, fall back to Tactiq if no summary exists.
+Meeting prep follows this rule by default — Gemini first, fall back to Tactiq if no summary exists.
 
 ## Where to download from
 
@@ -55,7 +55,7 @@ For other organizations: download manually from your meeting tool (Otter, Firefl
 ## Lifecycle
 
 1. **Capture** — drop the transcript here right after the meeting (or on a weekly batch sync from Drive)
-2. **Reference** — `<assistant.name>` reads it as part of `/briefing`, `/meeting-prep`, `/find`
+2. **Reference** — `<assistant.name>` reads it as part of `/briefing`, meeting prep and `/find`
 3. **Extract** — if a meeting produced action items or decisions that belong to an active project, append them to that project's `memory.md`
 4. **Retain** — transcripts stay here indefinitely; they're searchable history. Don't delete
 

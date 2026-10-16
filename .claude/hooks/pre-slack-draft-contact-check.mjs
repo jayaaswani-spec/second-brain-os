@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // PreToolUse hook: when drafting/sending a Slack message to a known contact,
-// emit their contact-file context to stderr so the model sees it.
+// hand their contact-file context to the model as additional context.
 //
 // Why: prevents wrong-tone drafts to recurring contacts whose context (role,
 // relationship, open commitments, last-interaction notes) lives in the
@@ -19,11 +19,11 @@
 // Behavior: non-blocking warning. Hook reads stdin (Claude Code PreToolUse
 // JSON), checks tool_name + channel_id, looks up in .claude/.slack-id-map.json,
 // reads matching contact file from <workspace.root>/4-Resources/contacts/<slug>.md,
-// emits frontmatter + first ~40 lines of body to stderr. Exit 0.
+// emits frontmatter + first ~70 lines as hookSpecificOutput.additionalContext
+// on stdout. Exit 0.
 //
-// Stderr from a PreToolUse hook is fed back to the model as additional context,
-// so even though the tool call proceeds, the model sees the warning + contact
-// summary on the next turn.
+// Stderr on exit 0 never reaches the model, so the context goes out as
+// PreToolUse additionalContext; the tool call still proceeds.
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -40,12 +40,16 @@ try {
 }
 
 const toolName = payload.tool_name || "";
-const SLACK_WRITE_TOOLS = new Set([
-  "mcp__slack__slack_send_message_draft",
-  "mcp__slack__slack_send_message",
-  "mcp__slack__slack_schedule_message",
+// Slack ships under many server names (mcp__slack__, mcp__claude_ai_Slack__,
+// the desktop app's ID-named connector). Match on the action suffix only.
+// Keep settings.json matcher in sync.
+const SLACK_WRITE_ACTIONS = new Set([
+  "slack_send_message_draft",
+  "slack_send_message",
+  "slack_schedule_message",
 ]);
-if (!SLACK_WRITE_TOOLS.has(toolName)) process.exit(0);
+const action = toolName.startsWith("mcp__") ? toolName.slice(toolName.lastIndexOf("__") + 2) : "";
+if (!SLACK_WRITE_ACTIONS.has(action)) process.exit(0);
 
 const channelId = payload.tool_input?.channel_id;
 if (!channelId) process.exit(0);
@@ -103,5 +107,10 @@ const warning = [
   "",
 ].join("\n");
 
-process.stderr.write(warning);
+process.stdout.write(JSON.stringify({
+  hookSpecificOutput: {
+    hookEventName: "PreToolUse",
+    additionalContext: warning,
+  },
+}));
 process.exit(0);

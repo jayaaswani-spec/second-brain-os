@@ -85,8 +85,7 @@ install_git() {
   ok "Installed $(git --version)"
 }
 
-# install_jq — `jq` is required by .claude/tools/*, the extract-template.sh
-# settings-filter step, and MCP config parsing. macOS Sonoma+ ships /usr/bin/jq,
+# install_jq — `jq` is required for MCP config parsing (.mcp.json edits). macOS Sonoma+ ships /usr/bin/jq,
 # but older macOS and Linux/WSL distros do not — so we install it explicitly
 # via Homebrew (already on PATH after install_brew).
 install_jq() {

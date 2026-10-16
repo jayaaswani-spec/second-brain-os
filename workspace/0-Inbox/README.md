@@ -23,7 +23,7 @@ This implements the "Capture before commit" operating principle in `SOUL.md`. Th
 - ✗ Reference docs you'll re-read → `4-Resources/reference/`
 - ✗ Research notes with a clear topic → `4-Resources/research/`
 - ✗ Meeting transcripts → `4-Resources/meetings/`
-- ✗ Code repos → `3-Coding/<scope>/<name>/`
+- ✗ Code → a `COD-` project's ignored `app/` while it's being built, or the owning Area's `apps/<name>/` once shipped
 - ✗ Anything finished → `5-Archive/`
 
 ## How `<assistant.name>` uses this folder

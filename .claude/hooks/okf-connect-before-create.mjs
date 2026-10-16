@@ -12,8 +12,8 @@
  * /new-project happy path, which already ran its own /find in Step 0).
  *
  * This is the deterministic backstop behind /new-project Step 0: even an ad-hoc
- * folder creation that bypasses the skill gets dedup-checked. The bitbucket-reviewer
- * twins (`2026-05-...` + `COD-2026-05-...`) are exactly what this catches.
+ * folder creation that bypasses the skill gets dedup-checked. A plain
+ * `2026-05-pr-reviewer` next to `COD-2026-05-pr-reviewer` is exactly what this catches.
  *
  * Fail-open: any error → exit 0 (write proceeds). A guard that errors on every
  * write is worse than one that occasionally misses.
@@ -25,9 +25,11 @@ import { resolveRepoRoot } from "./lib/resolve-project-root.mjs";
 
 const STOPWORDS = new Set(["the", "a", "an", "of", "for", "and", "to", "v1", "v2", "v3"]);
 
-function readToken(md, key) {
+// A Configuration value, or `fallback` when it's missing or still an unfilled <placeholder>.
+function readToken(md, key, fallback) {
   const m = md.match(new RegExp("`" + key.replace(/\./g, "\\.") + "` = `([^`]+)`"));
-  return m ? m[1].trim() : null;
+  const v = m ? m[1].trim() : "";
+  return v && !v.startsWith("<") ? v : fallback;
 }
 
 // Strip date + PROJ/COD prefixes, tokenize on '-', drop stopwords/short tokens.
@@ -45,23 +47,7 @@ function listDirs(p) {
   catch { return []; }
 }
 
-// Existing code-repo names from the code-projects index (gitignored repos aren't grep-visible).
-function codeRepoNames(repoRoot, md) {
-  const root = readToken(md, "workspace.root");
-  const resources = readToken(md, "workspace.resources");
-  if (!root || !resources) return [];
-  try {
-    const idx = readFileSync(join(repoRoot, root, resources, "code-projects.md"), "utf8");
-    return idx
-      .split("\n")
-      .map((l) => l.match(/^\|\s*([A-Za-z0-9_-]+)\s*\|/))
-      .filter(Boolean)
-      .map((m) => m[1])
-      .filter((n) => n.toLowerCase() !== "repo"); // drop header
-  } catch { return []; }
-}
-
-// New app repos are colocated with their owning Area under apps/<name>/.
+// Shipped app repos are colocated with their owning Area under apps/<name>/.
 function areaAppNames(wsBase, areasToken) {
   const apps = [];
   for (const area of listDirs(join(wsBase, areasToken))) {
@@ -127,10 +113,10 @@ const main = async () => {
   const repoRoot = resolveRepoRoot(fp);
   let md;
   try { md = readFileSync(join(repoRoot, "CLAUDE.md"), "utf8"); } catch { return; }
-  const rootToken = readToken(md, "workspace.root");
-  const projectsToken = readToken(md, "workspace.projects");
-  const archiveToken = readToken(md, "workspace.archive");
-  const areasToken = readToken(md, "workspace.areas") || "2-Areas";
+  const rootToken = readToken(md, "workspace.root", "workspace");
+  const projectsToken = readToken(md, "workspace.projects", "1-Projects");
+  const archiveToken = readToken(md, "workspace.archive", "5-Archive");
+  const areasToken = readToken(md, "workspace.areas", "2-Areas");
   if (!rootToken || !projectsToken) return;
 
   const wsBase = join(repoRoot, rootToken) + sep;
@@ -140,6 +126,9 @@ const main = async () => {
   const base = parts[parts.length - 1] || "";
   const reasons = [];
   const isAreaAppPath = parts[0] === areasToken && parts[2] === "apps" && parts.length >= 4;
+  // Code still being built (COD project app/) or archived code (archive project app/).
+  const isProjectAppPath = parts[2] === "app" && parts.length >= 4 &&
+    ((parts[0] === projectsToken && /^COD-/.test(parts[1])) || (archiveToken && parts[0] === archiveToken));
 
   // -------------------------------------------------------------------------
   // GUARD B — thin tracked Areas (locked 2026-07-10; app exception 2026-07-20):
@@ -155,17 +144,25 @@ const main = async () => {
   }
 
   // -------------------------------------------------------------------------
-  // GUARD C — code placement (locked 2026-06-12; placement revised 2026-07-20):
-  // runnable code never lands in committed content buckets. New apps belong in
-  // the owning Area's ignored apps/<name>/ repo; 3-Coding is grandfathered.
+  // GUARD C — code placement (locked 2026-06-12; homes revised 2026-09-30):
+  // runnable code never lands in committed content buckets. It lives in a COD
+  // project's ignored app/, the owning Area's ignored apps/<name>/, or an
+  // archive project's ignored app/. There is no standalone code folder.
   // -------------------------------------------------------------------------
-  if (CODE_EXTS.has(ext(base)) && !isAreaAppPath && ["0-Inbox", projectsToken, areasToken, "4-Resources", archiveToken].includes(parts[0])) {
+  const codeHomes =
+    `${rootToken}/${projectsToken}/COD-<slug>/app/ (being built), ` +
+    `${rootToken}/${areasToken}/<owning-area>/apps/<app-name>/ (shipped), or ` +
+    `${rootToken}/${archiveToken || "5-Archive"}/<slug>/app/ (archived)`;
+  if (CODE_EXTS.has(ext(base)) && !isAreaAppPath && !isProjectAppPath && ["0-Inbox", projectsToken, areasToken, "4-Resources", archiveToken].includes(parts[0])) {
     reasons.push(
       `CODE PLACEMENT: "${base}" is runnable code headed for a committed workspace path. ` +
-      `Locked rule (2026-06-12 gitleaks incident; placement revised 2026-07-20): new apps live in ` +
-      `${rootToken}/${areasToken}/<owning-area>/apps/<app-name>/ as ignored independent repos. ` +
-      `${rootToken}/3-Coding/ is grandfathered for existing repos only. ` +
+      `Code lives in ${codeHomes}, each an ignored independent repo, so secrets and dependencies never enter the tracked workspace. ` +
       `If this is genuinely inert (a code SAMPLE inside docs), approve to proceed.`
+    );
+  }
+  if (parts[0] === "3-Coding") {
+    reasons.push(
+      `CODE PLACEMENT: "${rel}" targets the retired standalone code folder. Code lives in ${codeHomes}.`
     );
   }
 
@@ -177,7 +174,6 @@ const main = async () => {
     const candidates = [];
     for (const n of listDirs(join(wsBase, projectsToken))) candidates.push({ name: n, where: "active" });
     if (archiveToken) for (const n of listDirs(join(repoRoot, rootToken, archiveToken))) candidates.push({ name: n, where: "archive" });
-    for (const n of codeRepoNames(repoRoot, md)) candidates.push({ name: n, where: "code repo" });
     for (const app of areaAppNames(wsBase, areasToken)) candidates.push({ name: app.name, where: `Area app (${app.area})` });
     const hits = nearDuplicates(slug, candidates);
     if (hits.length > 0) {
@@ -199,7 +195,7 @@ const main = async () => {
     if (existsSync(projDir) && !existsSync(join(projDir, newSub))) {
       if (BASE3.has(newSub.toLowerCase())) {
         reasons.push(
-          `FOLDER "${newSub}/" recreates the REPEALED base-3 layout (inputs/working/outputs — C10, 2026-06-28). ` +
+          `FOLDER "${newSub}/" recreates the retired inputs/working/outputs layout; projects don't pre-create those folders. ` +
           `Projects organize by their OWN concepts (meetings/, data/, decisions/, analysis/...). Pick a concept name.`
         );
       } else {
@@ -222,7 +218,7 @@ const main = async () => {
   // exist somewhere else in the workspace?
   // -------------------------------------------------------------------------
   if (/\.(md|html)$/i.test(base) && !PER_FOLDER_NAMES.has(base.toLowerCase()) &&
-      !existsSync(fp) && parts[0] !== "5-Archive" && !rel.includes("_archive")) {
+      !existsSync(fp) && parts[0] !== "5-Archive" && !rel.includes("_archive") && !isAreaAppPath && !isProjectAppPath) {
     const nt = new Set(tokens(base.replace(/\.(md|html)$/i, "")));
     if (nt.size >= 2) {
       const hits = [];
